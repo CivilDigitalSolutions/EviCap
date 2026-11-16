@@ -1,0 +1,520 @@
+# EviCap — Browser Extension Specification
+
+| | |
+|---|---|
+| **Status** | Draft v0.1 |
+| **Product** | EviCap — forensic web evidence capture for investigators |
+| **Platforms (v1)** | Google Chrome and Microsoft Edge (Manifest V3). Firefox desktop in v1.x. |
+| **Data model** | Local-only. No evidence, history or case data ever leaves the device. |
+| **Billing** | Stripe, via ExtensionPay |
+
+---
+
+## 1. Summary
+
+EviCap is a browser extension for OSINT investigators, law enforcement, legal teams and journalists. It records a tamper-evident log of every site visited while a case is active, and makes it fast to capture pages, screenshots, images and videos. Every artefact is hashed when it is created, and each case's log is signed with a local key. The result is a self-verifying evidence bundle that can be produced in court.
+
+It is designed to do what Hunchly and Magnet Web Page Saver do, and to improve on them in five ways:
+
+- **Stronger integrity.** Every artefact gets a SHA-256 hash, every case gets a hash-chained audit log, and capture manifests are signed. Bare MD5 hashes are not enough.
+- **Open formats.** Forensic page captures use WACZ/WARC, the standard web-archive formats, so they replay and verify without EviCap.
+- **Richer capture.** Raw HTTP responses, headers, TLS certificate details, server IP, MHTML, full-page screenshots and original media bytes.
+- **First-class media capture.** One-click capture of user-selected images and videos, including streamed video via tab recording.
+- **Offline verification.** Every export includes a standalone verifier page that recomputes every hash and signature.
+
+## 2. Goals and non-goals
+
+### Goals
+1. Continuously log every site visited while recording is on, with no user action needed.
+2. Let the user capture any of the following in one or two actions:
+   - a forensic capture of the whole page
+   - a screenshot (visible area, full page, selected region or a single element)
+   - an image they select
+   - a video they select, or a recording of the tab
+3. Hash every artefact with SHA-256 when it is created, record the hash in an append-only, hash-chained audit log, and never modify an original afterwards.
+4. Keep all data on the user's device. The extension operates no server and sends no telemetry.
+5. Export a case as a self-contained bundle with a human-readable report and an offline verifier.
+6. Sell a Pro tier through Stripe with as little backend work as possible.
+
+### Non-goals (v1)
+- Any cloud storage, sync, team sharing or server-side processing.
+- Mobile browsers (see §15).
+- Capturing DRM-protected media (Netflix and similar). This is technically blocked, and the extension says so rather than failing silently.
+- Proving that a server really sent a given response (zkTLS/TLSNotary). This is research-grade today and tracked as future work.
+- Automatic "recipes" for specific social media sites. This is v1.x (see §16).
+
+## 3. Users and core scenarios
+
+| Persona | Scenario |
+|---|---|
+| OSINT investigator | Opens a case, browses a subject's public profiles for two hours, then exports the case. Every page visited is in the log, and key pages have forensic captures. |
+| Police digital officer | Sees a threatening post, right-clicks the image and the video, and captures both in their original quality, with hashes, before the post is deleted. |
+| Litigation paralegal | Captures a full-length competitor web page and produces a PDF report with a SHA-256 hash and an exhibit index for counsel. |
+| Journalist | Keeps a per-story log of sources, adds notes and tags, and searches across every page captured. |
+
+## 4. Product principles
+
+1. **Local-first, local-only.** All case data stays in browser storage on the device, or in a folder the user picks. The extension never contacts a vendor server for case data. See the network rules in §10.
+2. **Originals never change.** Annotations, crops and redactions create new derived artefacts that point to their parent. The original bytes and hash are untouched.
+3. **Hash at the moment of capture.** Hashes are computed from the exact bytes written to storage, before anything else touches them.
+4. **Everything is logged.** Every action that creates, changes, exports or deletes data writes an audit event.
+5. **Never hold evidence hostage.** Viewing, exporting and verifying existing cases is always free, even if a subscription lapses.
+6. **Honest about limits.** The UI and reports state what the tool can and cannot prove, for example "the timestamp is from this computer's clock."
+
+## 5. Architecture
+
+### 5.1 Components (Manifest V3)
+
+| Component | Responsibility |
+|---|---|
+| **Service worker** (`background`) | Event hub: navigation logging, commands, context menus, capture orchestration, `chrome.debugger` sessions, audit log writer, licence state. Holds no long-lived state in memory, because MV3 workers are killed when idle. |
+| **Offscreen document** | Work the service worker can't do: streaming hashing of large files, `MediaRecorder` for tab recording, ZIP/WACZ assembly, image stitching for full-page screenshots, canvas work. |
+| **Content script** (all frames, on demand) | Media picker overlay, region/element selection, page metadata collection (title, canonical URL, meta tags, author), selector (keyword) highlighting, auto-scroll. Injected with `chrome.scripting` only while recording or capturing. |
+| **Side panel** (`chrome.sidePanel`) | Live view: active case, recording toggle, running visit log, recent captures, quick capture buttons, notes. |
+| **Toolbar popup** | Minimal: case switcher, record/pause, capture buttons, licence status. |
+| **Dashboard** (extension page in a full tab) | Case management, timeline, capture viewer, WACZ replay, search, tags, notes, export, verification, settings, billing. |
+| **Verifier** (`verify.html`, also shipped inside exports) | Standalone page that recomputes every hash, the audit chain and the signatures. It makes no network calls. |
+
+### 5.2 Storage
+
+| Store | Contents |
+|---|---|
+| **IndexedDB** (`evicap` DB) | Metadata: cases, visits, captures, artefact records, notes, tags, selectors, audit events, search index, keys. |
+| **Origin Private File System (OPFS)** | Artefact bytes: screenshots, MHTML, WARC/WACZ, images, videos. Large files are written as streams. |
+| **`chrome.storage.local`** | Settings, active case id, cached licence entitlement. |
+| **Optional disk mirror** | The user chooses a folder through the File System Access API (`showDirectoryPicker`). EviCap mirrors each case there as plain files plus manifests. This protects against data loss on uninstall (see §11.4) and makes backups easy. Chrome 122+ keeps the folder permission between sessions. |
+
+- The extension requests the `unlimitedStorage` permission, calls `navigator.storage.persist()` and monitors free space with `navigator.storage.estimate()`.
+- It warns the user at 80% of available space and blocks new captures, with a clear message, at 95%.
+
+### 5.3 Suggested tech stack
+
+- **Language/build:** TypeScript, with [WXT](https://wxt.dev) as the extension framework (it handles MV3 and builds for Chrome, Edge and Firefox).
+- **UI:** Preact or React, with plain CSS.
+- **Hashing:** WebCrypto `crypto.subtle.digest('SHA-256')` for small inputs. `hash-wasm` for streaming SHA-256, MD5 and SHA-1 over large files (WebCrypto can't stream and has no MD5).
+- **Signatures:** WebCrypto ECDSA P-256 (§7.3).
+- **WARC/WACZ:** `warcio.js` (Webrecorder) to write WARC records; WACZ packaging per the Webrecorder spec. Check every library's licence before adopting it (some Webrecorder projects are AGPL-3.0).
+- **ZIP:** `fflate` or `zip.js` (streaming).
+- **Search:** `MiniSearch` or `FlexSearch` (in-browser full-text index).
+- **Canonical JSON:** RFC 8785 (JCS) serialiser for anything that gets hashed or signed.
+- **Billing:** `extpay` (ExtensionPay) — see §9.
+- **Tests:** Vitest for unit tests; Playwright with the unpacked extension loaded for end-to-end tests.
+
+## 6. Features
+
+Priority: **P0** = v1 must have, **P1** = v1 should have, **P2** = later.
+
+### F1 — Cases and recording (P0)
+
+- Create, rename, close, archive and delete cases. Fields: name, reference/case number, investigator name, organisation, description, created/closed timestamps.
+- **Exactly one active case** at a time. Recording (the visit log and auto-capture) only happens while a case is active and recording is on.
+- **Record / Pause** toggle in the popup, side panel and a keyboard shortcut. The toolbar badge shows the state: red dot = recording, grey = paused.
+- Optional **per-case domain scope**: record everything, or only listed domains.
+- **Global denylist** (never log), pre-filled with common banking, health and email domains; the user can edit it.
+- Incognito: off by default. If the user allows the extension in incognito, recording there needs a separate explicit opt-in per case.
+
+### F2 — Running log of sites visited (P0)
+
+While a case is recording, every top-level navigation in every tab is written to the visit log automatically.
+
+**Sources:**
+- `chrome.webNavigation.onCommitted` (frameId 0): standard navigations, with `transitionType` and `transitionQualifiers` (typed, link, reload, form_submit, redirect…)
+- `chrome.webNavigation.onHistoryStateUpdated` and `onReferenceFragmentUpdated`: single-page-app route changes (common on social media)
+- `chrome.tabs.onUpdated`: final title and favicon
+- `chrome.webRequest.onBeforeRedirect`: the redirect chain leading to the final URL (read-only, non-blocking)
+- `chrome.tabs.onActivated`, `chrome.windows.onFocusChanged`: dwell time (how long the tab was in focus)
+
+**Visit record:**
+
+```jsonc
+{
+  "id": "uuid",
+  "caseId": "uuid",
+  "seq": 1042,                      // monotonic per case
+  "url": "https://example.com/post/123",
+  "finalUrl": "https://example.com/post/123?ref=x",
+  "redirectChain": ["https://t.co/abc", "https://example.com/post/123"],
+  "title": "…",
+  "tabId": 812, "windowId": 3, "openerTabId": 800,
+  "transitionType": "link",
+  "transitionQualifiers": ["from_address_bar"],
+  "referrer": "https://search.example/…",   // from content script, if available
+  "navigatedAtUtc": "2026-11-16T10:42:07.123Z",
+  "tzOffsetMinutes": 0,
+  "leftAtUtc": "2026-11-16T10:44:51.004Z",
+  "focusedMs": 151230,
+  "spa": false,
+  "autoCaptureId": "uuid|null",
+  "auditEventHash": "sha256:…"
+}
+```
+
+- Every visit writes a `visit.recorded` audit event (§7.4), so the log is part of the hash chain and can't be silently edited.
+- **UI:** a live list in the side panel. In the dashboard, a timeline with filters by domain, time, tab and tag.
+- **Exports:** CSV, JSON, and inside the PDF/HTML report.
+
+### F3 — Automatic page capture (P0, Hunchly-style)
+
+When enabled for a case (default **on**), each logged page also gets a lightweight capture once it has loaded and been idle for about 1.5 s:
+
+- **MHTML** via `chrome.pageCapture.saveAsMHTML`
+- **Screenshot of the visible area** via `chrome.tabs.captureVisibleTab`
+- **Page text** extracted by the content script, for search
+- **SHA-256** of each artefact
+
+Rules:
+- **Deduplication:** if the extracted text and MHTML body hash match the previous capture of the same URL in the same case, link to the existing capture instead of storing a new one.
+- **Throttling:** at most one auto-capture per tab every N seconds (default 5). Skip pages over a size threshold (default 50 MB MHTML) and log the skip.
+- **No debugger:** auto-capture never attaches `chrome.debugger`, so the "being debugged" banner doesn't appear while browsing.
+
+### F4 — Forensic page capture (P0)
+
+A manual, one-click capture that records everything about the current page. It uses `chrome.debugger` (Chrome DevTools Protocol) and shows Chrome's "EviCap started debugging this browser" banner while it runs. Tell users this in onboarding.
+
+**Steps:**
+1. Attach the debugger, then enable the `Network`, `Page`, `DOM` and `Security` domains.
+2. **Optional reload with capture on.** Reloading with network recording active captures every request and response from the start. The default is "capture current state without reload"; the user can choose "reload & capture".
+3. **Optional auto-scroll** to trigger lazy loading, with configurable limits (max height or time). Optional "expand all" clicks on elements matching configured selectors (v1.x recipes).
+4. Collect:
+   - **Network:** every request and response with headers, timing, `remoteIPAddress`/port and protocol. Response bodies via `Network.getResponseBody`.
+   - **TLS:** `securityDetails` (protocol, cipher, certificate subject/issuer/SAN/validity, certificate transparency status) and the certificate chain (`Network.getCertificate`).
+   - **Full-page screenshot:** `Page.captureScreenshot` with `captureBeyondViewport: true`, PNG. Very long pages are tiled and stitched in the offscreen document, with tile hashes recorded.
+   - **MHTML:** `Page.captureSnapshot`.
+   - **Rendered DOM:** serialised HTML (`DOM.getOuterHTML`), plus the original source HTML from the network body.
+   - **Metadata:** title, canonical URL, meta/OpenGraph tags, `document.lastModified`, links on the page (list of outbound URLs), visible text.
+   - **Environment:** extension version, browser name/version, OS, user agent, screen/viewport size, device pixel ratio, timezone, system clock time at start and end.
+5. **Package** as **WACZ**: WARC records for every response, plus `pages.jsonl` and `datapackage.json`. Screenshots and MHTML are stored alongside as separate artefacts.
+6. **Hash and sign:** hash every file, build the capture manifest (§7.2), sign it (§7.3), write the audit event, then detach the debugger.
+
+**Failure handling:**
+- If DevTools is already attached to the tab, the debugger can't attach. Fall back to the F3 method, mark the capture as *"degraded: debugger unavailable"*, and record this in the manifest.
+- If a body can't be retrieved (evicted from cache, streaming), list it in the manifest as `bodyUnavailable` with the reason.
+
+### F5 — Screenshots (P0)
+
+| Mode | How | Shortcut (default, editable) |
+|---|---|---|
+| Visible area | `tabs.captureVisibleTab` (PNG) | `Alt+Shift+S` |
+| Full page | CDP `captureBeyondViewport`; falls back to scroll-and-stitch without the debugger | `Alt+Shift+F` |
+| Region | Content-script overlay; drag a rectangle; the visible area is captured and cropped in the offscreen document. Crops beyond the viewport are stitched. | `Alt+Shift+R` |
+| Element | Hover to highlight a DOM element, click, and capture its bounding box (scrolled into view and stitched if tall) | via the menu |
+
+- **Stamp, but don't alter.** The PNG stays pristine. A metadata sidecar holds URL, title, UTC time, viewport, device pixel ratio, scroll position, the region rectangle and SHA-256. An optional **"burned-in"** derived copy shows the URL, time and hash in a footer; it is stored as a child artefact with its own hash.
+- **Annotations (P1):** arrows, boxes, text and blur, saved as a derived artefact. The original is untouched and the link is logged.
+- **Format:** PNG by default; JPEG optional for derived copies only.
+
+### F6 — Capture selected images (P0)
+
+**Entry points:**
+- Right-click an image, then **"EviCap: Capture image"** (`contextMenus`, contexts `image`).
+- **Media picker mode** (toolbar or `Alt+Shift+M`): an overlay highlights every image, video, CSS background image and `<picture>`/`srcset` candidate on the page. The user ticks one or many, then clicks **Capture selected**. Multi-select capture is a key time-saver.
+- **"Capture all images on page"** (P1), with a minimum-size filter.
+
+**Process for each image:**
+1. Pick the best source: `currentSrc`, the largest `srcset` candidate, or `data-src`/lazy-load attributes (configurable).
+2. Get the **original bytes** rather than the re-encoded pixels, trying in order:
+   1. the network response body from the debugger, if a forensic session is active
+   2. `fetch()` from the extension with host permission, credentials included where the browser allows
+   3. `fetch()` from the content script in the page's own context (same-origin or CORS-allowed)
+   4. last resort: draw to canvas and export PNG, marked *"re-encoded: original bytes unavailable"*
+3. Keep EXIF and other embedded metadata exactly as delivered (no re-encoding). Parse and display EXIF in the viewer as read-only.
+4. Record: source URL, page URL, alt/title/aria text, rendered and natural dimensions, MIME type, response headers (where available), surrounding text snippet, DOM path, retrieval method and SHA-256 (plus MD5/SHA-1 if enabled).
+5. Also take an **in-context screenshot** of the element on the page (child artefact), which shows where the image appeared.
+
+### F7 — Capture selected videos (P0)
+
+Many sites stream video rather than serving a single file, so EviCap supports three methods and picks the best one automatically. The method used is always recorded.
+
+| Method | When | How |
+|---|---|---|
+| **A. Direct file** | `<video>` `currentSrc` is a normal `http(s)` URL (mp4/webm/mov) | Stream download into OPFS with **incremental SHA-256** while writing. Supports resume via `Range` requests. Shows progress. |
+| **B. Stream manifest** (P1) | HLS (`.m3u8`) or DASH (`.mpd`) seen in network traffic, not encrypted | Download the manifest and all segments of the chosen rendition, hash every segment and the manifest, then store them and also remux to one MP4 (derived artefact). Originals are kept. |
+| **C. Tab recording** | `blob:`/MediaSource streams, encrypted media, or anything else | `chrome.tabCapture.getMediaStreamId` feeds an offscreen `MediaRecorder` (WebM, VP9/Opus, tab audio included). The user starts and stops it from an overlay. Hashing runs incrementally on chunks, and the final file hash is recorded at stop. The manifest records start/stop UTC times, the visited URL(s) during recording, and the visible-tab size. |
+
+- **Entry points:** right-click a video, then **"EviCap: Capture video"**; the media picker (F6); or **"Record this tab"** in the popup or side panel.
+- **Poster/thumbnail and metadata:** duration, dimensions, `currentTime`, captions/track URLs (also downloaded and hashed).
+- **DRM:** if the media is EME-encrypted, Method C recording will show black frames. EviCap detects EME (`MediaKeys` on the element), warns the user, and records that the content is DRM-protected.
+- **Large files:** no fixed limit beyond storage quota. A warning appears above 2 GB.
+
+### F8 — Notes, tags and selectors (P0 notes and tags; P1 selectors)
+
+- **Notes:** free text, attachable to a case, visit or capture. Every create and edit is an audit event; edits keep the previous version.
+- **Tags:** free-form, filterable everywhere.
+- **Selectors** (keyword watch list, like Hunchly's): a per-case list of names, usernames, emails, phone numbers or regexes. While recording, the content script highlights matches on every page and writes a `selector.hit` record (term, URL, snippet, time). A side-panel counter shows the hits.
+
+### F9 — Search and review (P1)
+
+- Full-text search over page text, notes, titles, URLs and EXIF, scoped to a case or all cases.
+- **Timeline view:** visits and captures on one time axis.
+- **WACZ replay:** embedded `replayweb.page`-style viewer, offline and served from local storage. Check its licence before bundling.
+
+### F10 — Export and reporting (P0)
+
+**Case export** produces one `.zip` with this layout:
+
+```
+EviCap_<case-ref>_<UTC timestamp>.zip
+├── manifest.json            # every file, size, SHA-256 (+MD5/SHA-1 if enabled)
+├── manifest.sig             # signature over JCS(manifest.json)
+├── public-key.jwk           # install public key
+├── audit-log.jsonl          # full hash-chained audit log
+├── visits.csv / visits.json
+├── captures/<capture-id>/…  # WACZ, PNG, MHTML, images, videos, sidecar JSON
+├── report.html              # human-readable report
+├── report.pdf               # same, printed to PDF
+└── verify.html              # offline verifier (no network)
+```
+
+- **The report includes:** case details, investigator, environment, a summary of what EviCap does and does not prove, a visit log table, an exhibit index (each capture with thumbnail, URL, UTC time, method and SHA-256), notes, selector hits, and the audit chain head hash.
+- **Exhibit-only export:** selected captures only, with the same manifest, signature and verifier.
+- The **export file's own SHA-256** is computed after writing, shown to the user and recorded as an `export.created` audit event. That event is logged inside the case, but cannot be inside the ZIP it describes.
+- PDF generation: open the report in an extension tab and use CDP `Page.printToPDF`. If that is unavailable, the user prints manually.
+
+### F11 — Verification (P0)
+
+- **Dashboard and verifier:** verify a case, a capture or an imported bundle. The verifier:
+  1. recomputes the SHA-256 of every file and compares it with the manifest
+  2. checks the manifest signature with the bundled public key
+  3. walks the audit chain and checks every `prevHash`
+  4. shows a pass/fail report with details for each item
+- The verifier is a single static HTML/JS file with no external dependencies and no network calls. It works when opened from disk in any modern browser.
+
+### F12 — Settings (P0)
+
+- Auto-capture on/off and its throttles
+- Default screenshot mode and format
+- Extra hash algorithms (MD5, SHA-1), off by default
+- Domain denylist; per-case scope
+- Disk mirror folder
+- Keyboard shortcuts (link to `chrome://extensions/shortcuts`)
+- Storage usage
+- Licence status
+- Trusted timestamping (opt-in, §7.5)
+
+### F13 — Onboarding (P0)
+
+The first-run tab explains:
+- that data is stored only on this device, and uninstalling or clearing browser data deletes it unless it has been exported or mirrored
+- what the debugger banner means
+- how to set up a disk mirror
+- a privacy summary, with a link to `PRIVACY.md`
+
+## 7. Integrity design
+
+### 7.1 Hashing
+- **Primary:** SHA-256 for every stored artefact, computed over the exact bytes written to storage (streamed for large files).
+- **Optional:** MD5 and SHA-1, for compatibility with older forensic tools. Never the only hash.
+- **Form:** hashes are stored as lowercase hex, prefixed `sha256:`.
+- **Timing:** the hash is computed and recorded **before** the capture appears in the UI.
+- **Re-hash on view (P1):** opening an artefact re-hashes it in the background and flags any mismatch.
+
+### 7.2 Capture manifest
+Each capture has a manifest:
+
+```jsonc
+{
+  "schema": "evicap.capture/1",
+  "captureId": "uuid", "caseId": "uuid",
+  "type": "forensic|auto|screenshot|image|video",
+  "method": "cdp|pageCapture|direct-fetch|hls|tab-recording|…",
+  "degraded": [],                       // reasons, if any
+  "url": "…", "title": "…",
+  "startedAtUtc": "…", "completedAtUtc": "…",
+  "environment": { "extension": "1.0.0", "browser": "Chrome 142…", "os": "…", "tz": "Europe/London" },
+  "files": [ { "path": "page.wacz", "bytes": 123456, "sha256": "…", "md5": null } ],
+  "parent": null,                       // for derived artefacts
+  "auditEventHash": "sha256:…"
+}
+```
+
+The **capture hash** is the SHA-256 of the RFC 8785 canonical JSON of this manifest.
+
+### 7.3 Signing
+- **Key:** on install, EviCap generates an ECDSA P-256 key pair with WebCrypto. The private key is **non-extractable** and stored in IndexedDB as a `CryptoKey`.
+- **What is signed:** every capture manifest and every export manifest.
+- **Identity:** the public key and its fingerprint (SHA-256 of the SPKI) are shown in Settings and included in every export. The investigator can record the fingerprint in their notes or statement to link the key to themselves.
+- **Limitation (stated in the report):** the key is self-generated. It proves that the same EviCap install produced the evidence and that it hasn't changed since. It doesn't independently prove who that installation belongs to.
+
+### 7.4 Audit log (chain of custody)
+- Append-only events in IndexedDB. There is no update or delete path in the data layer.
+- **Event:**
+
+  ```jsonc
+  { "seq": 1, "caseId": "…", "type": "…", "atUtc": "…", "payload": { … },
+    "payloadHash": "sha256:…", "prevHash": "sha256:…", "hash": "sha256:…" }
+  ```
+
+  where `hash = SHA-256(JCS({seq, caseId, type, atUtc, payloadHash, prevHash}))`.
+- **Event types include:**
+  - `case.created`, `case.updated`, `case.closed`
+  - `recording.started`, `recording.paused`
+  - `visit.recorded`, `capture.created`, `artefact.derived`
+  - `note.created`, `note.edited`, `tag.added`, `tag.removed`, `selector.hit`
+  - `export.created`, `verify.run`, `settings.changed`
+  - `artefact.deleted`, `licence.changed`
+- **Deletion** asks for a reason. Artefact bytes are removed, but a tombstone event keeps the original hash and the reason, so the gap is visible and explained.
+- **Chain head:** the current hash is shown in the case header and the report.
+
+### 7.5 Trusted timestamping (P1, opt-in, off by default)
+- When enabled, EviCap sends **only the SHA-256 hash** of a capture manifest (or of the audit chain head, at an interval the user sets) to an RFC 3161 Time Stamping Authority the user chooses, for example FreeTSA or a commercial or eIDAS-qualified TSA. It stores the returned token.
+- No URLs, content or identity are sent. The privacy policy and onboarding describe this.
+- This is the **only** optional outbound call involving case-derived data, and the data is a hash only. It stays off unless the user enables it.
+
+### 7.6 Clock
+- Timestamps come from the system clock in UTC, with the timezone offset recorded.
+- The report states that times come from the computer's clock unless an RFC 3161 token is present.
+- Large clock jumps (detected by comparing `Date.now()` with `performance.timeOrigin + performance.now()` across events) are logged as `clock.anomaly`.
+
+## 8. Permissions
+
+| Permission | Why | Notes for store review |
+|---|---|---|
+| `storage`, `unlimitedStorage` | Settings, licence cache, large evidence store | — |
+| `tabs` | URLs and titles for the visit log; screenshots | — |
+| `webNavigation` | Visit log (F2) | — |
+| `webRequest` (non-blocking) | Redirect chains | Read-only; never modifies requests |
+| `scripting` | Inject media picker, region selector, metadata collector | — |
+| `activeTab` | Capture the current tab on user action | — |
+| `contextMenus` | Right-click capture for images and videos | — |
+| `pageCapture` | MHTML | — |
+| `debugger` | Forensic capture (F4), full-page screenshots, response bodies, TLS details | **Sensitive; expect manual review.** Only attached during a user-initiated capture. Justification text must be written carefully. |
+| `tabCapture`, `offscreen` | Tab video recording (F7-C), hashing, ZIP building | — |
+| `sidePanel` | Live log UI | — |
+| `downloads` | Saving exports | — |
+| `alarms` | Licence re-check, periodic chain-head timestamp (opt-in) | — |
+| Host permissions `<all_urls>` | Recording and capture work on any site the investigator visits; cross-origin media fetch | Requested at install, since recording all sites is the core function. Explain this in the listing. |
+| `https://extensionpay.com/*` (host + content script) | Billing (§9) | Only billing traffic |
+
+Chrome version: **Chrome 116+** (promise-based `pageCapture`, mature offscreen and sidePanel APIs). Target the current stable release.
+
+## 9. Billing (Stripe via ExtensionPay)
+
+### 9.1 Why ExtensionPay
+The Chrome Web Store no longer handles payments. ExtensionPay is the simplest route because it wraps Stripe and requires **no backend**:
+- The developer connects their own Stripe account to ExtensionPay.
+- ExtensionPay hosts the checkout, login and subscription management pages.
+- The extension asks `extpay.getUser()` for the licence status.
+- It supports monthly, yearly and one-off plans, free trials, and login by email on additional devices.
+
+Check ExtensionPay's current fees and terms before launch. If a merchant of record is needed later (so someone else handles VAT/sales tax), Paddle or Lemon Squeezy with your own licence endpoint is the upgrade path. That would need a small server.
+
+### 9.2 Integration
+- `ExtPay('<extension-id>')` with `startBackground()` in the service worker. Re-create the `extpay` instance inside callbacks, because MV3 workers restart.
+- Manifest: content script on `https://extensionpay.com/*` at `document_start` (needed for `onPaid` / `onTrialStarted`), plus a CSP `connect-src` that allows `https://extensionpay.com`.
+- **Licence check:** on startup and every 24 h (`alarms`). Cache `{paid, plan, subscriptionStatus, trialStartedAt, checkedAt}` in `chrome.storage.local`.
+- **Offline grace:** if the check fails because of the network, keep the cached entitlement for **14 days**. After that, drop to Free features. Existing data is never locked (principle 5).
+- **Upgrade:** `extpay.openPaymentPage()` / `openPaymentPage('pro-yearly')`. The `onPaid` listener unlocks immediately.
+- **Manage or cancel:** `openPaymentPage()` also serves as the management page.
+- **Trial:** `openTrialPage('14-day')`; trial status is derived from `trialStartedAt`.
+
+### 9.3 Plans (proposed; adjust as needed)
+
+| Feature | Free | Pro |
+|---|---|---|
+| Cases | 1 active case | Unlimited |
+| Visit log | ✓ | ✓ |
+| Auto-capture (F3) | ✓ (limit: 100 per case) | Unlimited |
+| Screenshots, all modes | ✓ | ✓ |
+| Image capture | Single (right-click) | Single + multi-select picker + capture all |
+| Video capture | Direct file only | Direct + streams + tab recording |
+| Forensic capture (F4, WACZ) | 10 per month | Unlimited |
+| Hashing, audit log, signing | ✓ | ✓ |
+| Export, reports, verifier | ✓ (always) | ✓ + branded reports, exhibit-only export |
+| Selectors, search | — | ✓ |
+| Trusted timestamping | — | ✓ |
+
+### 9.4 Enforcement caveat
+Because there is no server, paywall checks run in the client and a determined user could bypass them. That is accepted for v1. Paid value that can be enforced server-side, such as cloud signing or sync, would need a backend, which is deliberately out of scope for the local-only v1.
+
+### 9.5 What billing transmits
+Only ExtensionPay/Stripe traffic: the user's email address, payment details (entered on Stripe/ExtensionPay pages, never seen by the extension), plan and subscription status, and an ExtensionPay user identifier. **No case data, visit history or captures.** This is reflected in `PRIVACY.md`.
+
+## 10. Network rules (local-only guarantee)
+
+The extension may make network requests only of these kinds:
+
+| # | Destination | Purpose | Contains user data? |
+|---|---|---|---|
+| 1 | The websites the user is viewing | Fetch the original bytes of pages, images and video the user chose to capture (the same requests a browser makes to view them) | It goes to the site being captured. Nothing is uploaded to it beyond normal browser requests. |
+| 2 | `extensionpay.com` (and Stripe, through ExtensionPay's pages) | Billing and licence status | Email and subscription status only |
+| 3 | A user-configured RFC 3161 TSA (**opt-in, off by default**) | Trusted timestamp | A SHA-256 hash only |
+
+**Hard rules:**
+- No analytics, telemetry, crash reporting, remote config, remote code, ad SDKs or font/CDN loads. All code and assets are bundled (also required by MV3).
+- The extension-page CSP sets `connect-src 'self' https://extensionpay.com` (plus the TSA host, when enabled). Fetches to captured sites run in the service worker or offscreen document, which have host permissions.
+- A CI test lints for any `fetch`/`XMLHttpRequest`/`WebSocket`/`sendBeacon` call outside an allow-listed network module.
+- An E2E test runs the extension through a recording proxy and fails on any request to a host not on the list above.
+
+## 11. Security and data protection
+
+1. **At rest:** data sits in the browser profile on disk. Anyone with access to the OS user account could read it.
+   - P1: optional per-case passphrase encryption (AES-GCM-256, key derived with PBKDF2-SHA-256 at ≥600k iterations, or Argon2id via WASM). Hashes are computed over the plaintext and recorded before encryption.
+2. **Isolation:** captured page content is never rendered in an extension-privileged context. MHTML and WACZ replay run in a sandboxed iframe (`sandbox` manifest key) with no extension API access.
+3. **Content scripts:** treat the page DOM as untrusted. Never `eval` and never use `innerHTML` with page data in extension UI.
+4. **Uninstall / data loss:** uninstalling the extension or clearing site data **deletes all local data**.
+   - Mitigations: onboarding warning, a persistent banner until a disk mirror or export exists, "last exported" indicator per case, export reminder when a case is closed.
+   - Optional `chrome.runtime.setUninstallURL` is **not** used, because it would transmit data.
+5. **Supply chain:** lockfile, pinned dependencies, `npm audit` in CI, minimal dependencies, reproducible builds, and store-signed releases.
+
+## 12. Chrome Web Store compliance
+- Single purpose: *"Capture and preserve web evidence for investigations."*
+- **Privacy practices tab:**
+  - Declare handling of web history, website content and (for billing) email/personally identifiable info and payment-related info.
+  - State that evidence data is processed and stored locally and not transmitted.
+  - Certify the Limited Use requirements.
+  - Check the current definitions in the CWS User Data Policy at submission time.
+- Privacy policy URL: host `PRIVACY.md` publicly (GitHub Pages or the product site).
+- Permission justifications for `debugger`, `<all_urls>`, `tabCapture` and `webRequest` (copy based on §8).
+- Expect manual review because of `debugger`. Use `activeTab` and optional permissions where possible.
+
+## 13. Non-functional requirements
+
+| Area | Requirement |
+|---|---|
+| Performance | Visit logging adds < 5 ms per navigation in the service worker. Auto-capture never blocks page interaction. Hashing 1 GB takes < 10 s on a mid-range laptop (hash-wasm streaming). |
+| Reliability | All writes are transactional. A capture is "complete" only after the bytes, hash, manifest, signature and audit event are all committed. Captures interrupted by a service-worker restart are marked `incomplete` and shown to the user. |
+| Accessibility | WCAG 2.2 AA; full keyboard operation; screen-reader labels on all capture controls. |
+| Localisation | UI strings in `_locales`; English at launch. |
+| Time | All stored times are UTC ISO-8601 with milliseconds; the UI shows local time with the offset. |
+
+## 14. Testing
+- **Unit:**
+  - hash vectors (NIST SHA-256 test vectors)
+  - JCS canonicalisation vectors
+  - audit chain building and tamper detection
+  - manifest signing and verification
+- **E2E (Playwright, unpacked extension):**
+  - visit log across redirects and SPA navigations
+  - every screenshot mode
+  - image capture from same-origin and cross-origin pages
+  - direct video download
+  - tab recording
+  - forensic capture to WACZ, then replay
+  - export, then verify with `verify.html`
+- **Tamper tests:** modify one byte of an exported file and confirm the verifier flags exactly that file. Edit an audit line and confirm the chain breaks at that line.
+- **Network test:** recording proxy. Fail on any request not allowed by §10.
+- **Fixture site:** a local test site with lazy-load images, `srcset`, HLS, MSE and EME demo pages, redirects and an SPA.
+
+## 15. Mobile (out of scope for v1)
+Chrome on Android has no extension support, and Safari on iOS lacks `webRequest` and any `debugger` equivalent. The planned mobile route is a separate native app with its own capture browser, screen recording for in-app content, and a share-sheet capture. It would use the same case format and manifest schema, so the evidence is interoperable.
+
+## 16. Roadmap
+
+| Milestone | Scope |
+|---|---|
+| **M0 — Skeleton** | WXT project, MV3 manifest, storage layer, audit log, hashing/signing core, settings |
+| **M1 — Logging & screenshots** | F1, F2, F5, notes/tags, side panel, basic dashboard |
+| **M2 — Media** | F6, F7-A, F7-C, media picker |
+| **M3 — Forensic & auto capture** | F3, F4 (WACZ), replay viewer |
+| **M4 — Export & verify** | F10, F11, report HTML/PDF, disk mirror |
+| **M5 — Billing & launch** | ExtensionPay, plan gating, onboarding, store listing, privacy policy hosting |
+| **v1.x** | F7-B (HLS/DASH), selectors, search, annotations, RFC 3161 timestamps, case encryption, Firefox build, social-media capture recipes (auto-expand comments, timeline scroll) |
+| **v2** | Optional end-to-end-encrypted team sync, server-side signing, mobile app, zkTLS research |
+
+## 17. Open questions
+1. **Product name and legal entity** for the store listing and privacy policy (placeholders are used in `PRIVACY.md`).
+2. **Pricing:** final Free/Pro split and price points.
+3. **Default auto-capture:** on (Hunchly-like) or off (smaller storage footprint)?
+4. **Extra hashes:** is MD5/SHA-1 needed by your target customers' forensic tools (for example, AXIOM ingestion)?
+5. **Timestamping:** is the opt-in RFC 3161 feature acceptable given the "no transmission" goal? It sends hashes only. Alternatively, leave it out of v1 entirely.
+6. **Merchant of record:** will you sell internationally from day one? If so, consider Paddle or Lemon Squeezy instead of ExtensionPay/Stripe for VAT handling.
