@@ -1,4 +1,5 @@
 import { defineConfig } from 'wxt';
+import { verifierPlugin } from './tools/verifier-plugin';
 
 // EviCap — see docs/SPEC.md. Network rules (§10): EviCap contacts only
 // ExtensionPay (billing), FreeTSA (opt-in timestamps) and the websites whose
@@ -8,6 +9,7 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   srcDir: 'src',
   modules: ['@wxt-dev/module-react'],
+  vite: () => ({ plugins: [verifierPlugin()] }),
   manifest: {
     name: 'EviCap',
     description: 'Capture and preserve web evidence for investigations.',

@@ -23,6 +23,7 @@ import * as recorder from '@/lib/recorder';
 import { takeScreenshot, type ScreenshotMode } from '@/lib/screenshots';
 import { getSettings, getState, saveSettings, type LiveState, type Settings } from '@/lib/settings';
 import { dismissJob, markInterruptedJobs } from '@/lib/jobs';
+import { printReportPdf, recordExport, recordVerify } from '@/lib/export-sw';
 import { forensicCapture } from '@/lib/forensic';
 import { captureMediaAt, pickAndCapture, type MediaResult } from '@/lib/media';
 import type { TabRecordingEndedMessage } from '@/lib/messages';
@@ -450,6 +451,17 @@ export default defineBackground(() => {
     async status() {
       const key = await getInstallKey();
       return { storage: await storageStatus(), fingerprint: key.fingerprint, version: chrome.runtime.getManifest().version };
+    },
+    async printReportPdf(htmlPath, pdfPath) {
+      await printReportPdf(htmlPath, pdfPath);
+    },
+    async recordExport(caseId, rec) {
+      await recordExport(caseId, rec);
+      broadcast({ scope: 'cases', caseId });
+    },
+    async recordVerify(caseId, rec) {
+      await recordVerify(caseId, rec);
+      broadcast({ scope: 'cases', caseId });
     },
   };
 

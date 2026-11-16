@@ -291,6 +291,17 @@ EviCap_<case-ref>_<UTC timestamp>.zip
 - The **export file's own SHA-256** is computed after writing, shown to the user and recorded as an `export.created` audit event. That event is logged inside the case, but cannot be inside the ZIP it describes.
 - PDF generation: open the report in an extension tab and use CDP `Page.printToPDF`. If that is unavailable, the user prints manually.
 
+**As built (M4):**
+- The export runs in the dashboard and streams into a ZIP in OPFS (`exports/<exportId>/`), so large cases are never held in memory. EviCap writes the ZIP itself: entries are stored uncompressed (evidence files are mostly compressed already, and stored entries can be checked one by one), and ZIP64 records are added only when a size or offset needs them, so ordinary exports open in every ZIP tool. Free space is checked first.
+- Also in the ZIP: `case.json`, `captures.json` (every capture record with its exhibit number) and `notes.json` (with version history). `timestamps/` will be added with trusted timestamping.
+- **Exhibit numbers** are stable within a case: top-level captures in time order (EV-001, EV-002…), with related artefacts lettered (EV-001a). They are the same in a whole-case and an exhibit-only export.
+- **Export manifest** (`evicap.export/1`): export id and kind, case details, software and environment, key fingerprint, audit chain head, the captures with their capture hashes and exhibit numbers, whether the PDF is included, and every file's path, size and SHA-256. It is signed like a capture manifest.
+- **Exhibit-only export:** the chosen captures and their related artefacts, the visits and notes about them, and the full audit log in which every unrelated event has `payload: null, redacted: true`. An event's hash covers its payload's hash, not the payload, so the chain still verifies end to end without revealing the other sites visited.
+- `visits.csv` is UTF-8 with a byte-order mark. A cell that starts with `=`, `+`, `-`, `@` or a tab gets a leading apostrophe so spreadsheets don't run it as a formula; `visits.json` keeps the exact values.
+- The PDF is printed from a hidden extension page (`print.html`) with `Page.printToPDF`; the debugging bar shows for a moment. If printing fails, the export still completes, without `report.pdf`, and the manifest says why.
+- Saving uses an ordinary browser download of the file in OPFS, so the `downloads` permission isn't needed. EviCap keeps its copy until the user removes it from **Previous exports**; the record stays in the audit log.
+- `verify.html` is built from the same TypeScript as the dashboard's verifier (`src/verifier`), bundled into one file at build time, with a CSP of `default-src 'none'`.
+
 ### F11 — Verification (P0)
 
 - **Dashboard and verifier:** verify a case, a capture or an imported bundle. The verifier:
@@ -300,6 +311,8 @@ EviCap_<case-ref>_<UTC timestamp>.zip
   4. checks every timestamp token against the hash it covers and the bundled FreeTSA certificates
   5. shows a pass/fail report with details for each item
 - The verifier is a single static HTML/JS file with no external dependencies and no network calls. It works when opened from disk in any modern browser.
+- It also checks each capture's own signed manifest against its files and against the `capture.created` audit event that recorded it, and warns about files in the bundle that the manifest doesn't list.
+- In the dashboard, **Check this case** re-hashes every stored file, checks every capture manifest and signature and walks the chain; **Verify** checks an export file. Both are recorded as `verify.run` events (a bundle check only when its case is in this browser).
 
 ### F12 — Settings (P0)
 
@@ -412,7 +425,6 @@ EviCap's own times come from the computer's clock, which the user can change. A 
 | `debugger` | Forensic capture (F4), full-page screenshots, response bodies, TLS details | **Sensitive; expect manual review.** Only attached during a user-initiated capture. Justification text must be written carefully. |
 | `tabCapture`, `offscreen` | Tab video recording (F7-C), hashing, ZIP building | — |
 | `sidePanel` | Live log UI | — |
-| `downloads` | Saving exports | — |
 | `alarms` | Licence re-check (only once the user has used billing), periodic chain-head timestamp (opt-in) | — |
 | Host permissions `<all_urls>` | Recording and capture work on any site the investigator visits; cross-origin media fetch | Requested at install, since recording all sites is the core function. Explain this in the listing. |
 | `https://extensionpay.com/*` (host + content script) | Billing (§9) | Only billing traffic |

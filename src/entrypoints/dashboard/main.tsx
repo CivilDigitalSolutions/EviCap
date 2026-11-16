@@ -13,6 +13,7 @@ import { CaseView } from './CaseView';
 import { Onboarding } from './Onboarding';
 import { SnapshotView } from './PageCards';
 import { SettingsPage } from './Settings';
+import { VerifyPage } from './Verify';
 
 function useRoute(): string[] {
   const read = () => location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
@@ -61,6 +62,7 @@ function App() {
   if (section === 'onboarding') page = <Onboarding />;
   else if (section === 'new') page = <NewCase />;
   else if (section === 'settings') page = <SettingsPage />;
+  else if (section === 'verify') page = <VerifyPage />;
   else if (section === 'case' && a && b === 'capture' && c && d === 'snapshot') page = <SnapshotView caseId={a} captureId={c} />;
   else if (section === 'case' && a && b === 'capture' && c) page = <CaptureView caseId={a} captureId={c} />;
   else if (section === 'case' && a) page = <CaseView caseId={a} />;
@@ -74,6 +76,7 @@ function App() {
         </a>
         <nav className="row">
           <a href="#/">Cases</a>
+          <a href="#/verify">Verify</a>
           <a href="#/settings">Settings</a>
         </nav>
         <div className="grow" />

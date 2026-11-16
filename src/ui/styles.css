@@ -99,19 +99,22 @@ button,
   text-decoration: none;
   white-space: nowrap;
 }
-button:hover:not(:disabled) {
+button:hover:not(:disabled),
+.btn:hover {
   background: var(--surface-2);
 }
 button:disabled {
   opacity: 0.5;
   cursor: default;
 }
-button.primary {
+button.primary,
+.btn.primary {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-text);
 }
-button.primary:hover:not(:disabled) {
+button.primary:hover:not(:disabled),
+.btn.primary:hover {
   filter: brightness(1.08);
   background: var(--accent);
 }
@@ -123,7 +126,8 @@ button.rec {
   border-color: var(--rec);
   color: #fff;
 }
-button.small {
+button.small,
+.btn.small {
   padding: 3px 8px;
   font-size: 12px;
 }

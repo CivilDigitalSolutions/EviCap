@@ -204,15 +204,7 @@ export function hostLabel(url: string) {
 }
 
 /** Short label for a capture in lists. */
-export function captureLabel(c: CaptureRecord): string {
-  if (c.type === 'screenshot') {
-    const mode = String(c.meta.mode ?? 'screenshot');
-    return mode === 'context' ? 'in-context screenshot' : mode === 'full' ? 'full page' : mode;
-  }
-  if (c.type === 'video') return c.method.startsWith('tabCapture') ? 'tab recording' : String(c.meta.kind ?? 'video');
-  if (c.type === 'image') return c.meta.kind === 'background' ? 'background image' : 'image';
-  return c.type;
-}
+export { captureLabel } from '@/lib/labels';
 
 /** Hide child artefacts (such as in-context screenshots) whose parent is also listed; count them on the parent. */
 export function groupChildren(list: CaptureRecord[]): { c: CaptureRecord; children: number }[] {

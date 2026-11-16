@@ -7,9 +7,10 @@ import type { CaptureRecord, CaseRecord, VisitRecord } from '@/lib/types';
 import { Banner, captureLabel, ErrorText, groupChildren, Hash, hostLabel, LocalTime, Tags } from '@/ui/components';
 import { useAction, useLive, useLiveState, useOpfsUrl } from '@/ui/hooks';
 import { CaseForm } from './Cases';
+import { ExportPanel } from './ExportPanel';
 import { go } from './nav';
 
-type Tab = 'timeline' | 'visits' | 'captures' | 'notes' | 'audit';
+type Tab = 'timeline' | 'visits' | 'captures' | 'notes' | 'audit' | 'export';
 
 export function CaseView({ caseId }: { caseId: string }) {
   const [c] = useLive(() => getCase(caseId), ['cases', 'visits', 'captures', 'notes'], [caseId]);
@@ -45,6 +46,7 @@ export function CaseView({ caseId }: { caseId: string }) {
             ['captures', 'Captures'],
             ['notes', 'Notes'],
             ['audit', 'Audit log'],
+            ['export', 'Export & verify'],
           ] as const
         ).map(([t, label]) => (
           <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>
@@ -57,6 +59,7 @@ export function CaseView({ caseId }: { caseId: string }) {
       {tab === 'captures' && <Captures caseId={c.id} />}
       {tab === 'notes' && <Notes caseId={c.id} />}
       {tab === 'audit' && <Audit caseId={c.id} />}
+      {tab === 'export' && <ExportPanel c={c} />}
     </section>
   );
 }

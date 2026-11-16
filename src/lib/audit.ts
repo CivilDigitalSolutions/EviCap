@@ -4,6 +4,9 @@ import { sha256Json, type Sha256 } from './hash';
 import { isMirrorEnabled, notifyMirror } from './mirror-queue';
 import type { AuditEvent, AuditEventType, CaseRecord } from './types';
 import { KeyedMutex, nowUtc } from './util';
+import { eventHashInput } from './chain';
+
+export { eventHashInput };
 
 /**
  * Hash-chained, append-only audit log (SPEC §7.4).
@@ -14,17 +17,6 @@ import { KeyedMutex, nowUtc } from './util';
  * Each case has its own chain. Only the service worker appends, and appends for
  * a case are serialised with a mutex, so `prevHash` is always the current head.
  */
-
-export function eventHashInput(e: Pick<AuditEvent, 'seq' | 'caseId' | 'type' | 'atUtc' | 'payloadHash' | 'prevHash'>) {
-  return {
-    seq: e.seq,
-    caseId: e.caseId,
-    type: e.type,
-    atUtc: e.atUtc,
-    payloadHash: e.payloadHash,
-    prevHash: e.prevHash,
-  };
-}
 
 export async function buildEvent(
   caseId: string,
@@ -111,28 +103,4 @@ export function appendEvent(
   return withCaseLock(caseId, () => appendEventLocked(caseId, type, payload, opts));
 }
 
-export interface ChainCheck {
-  ok: boolean;
-  count: number;
-  head: Sha256 | null;
-  /** Problems, each tied to a sequence number. */
-  errors: { seq: number; problem: string }[];
-}
-
-/** Walk a chain and recompute every hash (also used by the offline verifier). */
-export async function verifyChain(events: AuditEvent[]): Promise<ChainCheck> {
-  const errors: ChainCheck['errors'] = [];
-  const sorted = [...events].sort((a, b) => a.seq - b.seq);
-  let prev: Sha256 | null = null;
-  for (let i = 0; i < sorted.length; i++) {
-    const e = sorted[i]!;
-    if (e.seq !== i) errors.push({ seq: e.seq, problem: `expected sequence ${i}` });
-    if (e.prevHash !== prev) errors.push({ seq: e.seq, problem: 'prevHash does not match the previous event' });
-    const payloadHash = await sha256Json(e.payload);
-    if (payloadHash !== e.payloadHash) errors.push({ seq: e.seq, problem: 'payload has been changed' });
-    const hash = await sha256Json(eventHashInput(e));
-    if (hash !== e.hash) errors.push({ seq: e.seq, problem: 'event hash does not match its contents' });
-    prev = e.hash;
-  }
-  return { ok: errors.length === 0, count: sorted.length, head: prev, errors };
-}
+export { verifyChain, type ChainCheck } from './chain';

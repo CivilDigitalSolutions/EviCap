@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
-import { getCapture, getDb } from '@/lib/db';
-import { sha256Blob, sha256Json } from '@/lib/hash';
-import { canonicalize } from '@/lib/jcs';
-import { importPublicJwk, verifyJson } from '@/lib/keys';
+import { getCapture } from '@/lib/db';
+import { checkIntegrity, type Integrity } from '@/lib/integrity';
 import { rpc } from '@/lib/messages';
-import { capturePath, readFile } from '@/lib/opfs';
+import { capturePath } from '@/lib/opfs';
 import type { CaptureRecord } from '@/lib/types';
 import { formatBytes } from '@/lib/util';
 import { Banner, captureLabel, Hash, LocalTime, Tags } from '@/ui/components';
@@ -12,38 +10,6 @@ import { useLive, useOpfsUrl } from '@/ui/hooks';
 import { NoteList } from './CaseView';
 import { ExifCard, MediaPreview, RelatedCard, SourceCard } from './MediaCards';
 import { AutoCard, ForensicCards, SaveFile } from './PageCards';
-
-interface Integrity {
-  files: Record<string, 'ok' | 'mismatch' | 'missing'>;
-  manifest: 'ok' | 'mismatch' | 'missing';
-  signature: 'ok' | 'invalid' | 'missing';
-}
-
-/** Re-hash on view (SPEC §7.1): recompute every file hash and check the signed manifest. */
-async function checkIntegrity(c: CaptureRecord): Promise<Integrity> {
-  const files: Integrity['files'] = {};
-  for (const f of c.files) {
-    try {
-      const h = await sha256Blob(await readFile(capturePath(c.caseId, c.id, f.path)));
-      files[f.path] = h === f.sha256 ? 'ok' : 'mismatch';
-    } catch {
-      files[f.path] = 'missing';
-    }
-  }
-  let manifest: Integrity['manifest'] = 'missing';
-  let signature: Integrity['signature'] = 'missing';
-  try {
-    const parsed = JSON.parse(await (await readFile(capturePath(c.caseId, c.id, 'manifest.json'))).text());
-    const fileMatch = canonicalize(parsed.files) === canonicalize(c.files);
-    manifest = (await sha256Json(parsed)) === c.captureHash && fileMatch ? 'ok' : 'mismatch';
-    const sig = await (await readFile(capturePath(c.caseId, c.id, 'manifest.sig'))).text();
-    const key = await (await getDb()).get('keys', 'install');
-    if (key) signature = (await verifyJson(await importPublicJwk(key.publicJwk), parsed, sig.trim())) ? 'ok' : 'invalid';
-  } catch {
-    /* leave as missing */
-  }
-  return { files, manifest, signature };
-}
 
 export function CaptureView({ caseId, captureId }: { caseId: string; captureId: string }) {
   const [c] = useLive(() => getCapture(captureId), ['captures'], [captureId]);
