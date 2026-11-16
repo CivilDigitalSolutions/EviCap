@@ -4,29 +4,43 @@
 .topbar {
   display: flex;
   align-items: center;
-  gap: 18px;
-  padding: 10px 20px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  gap: 22px;
+  padding: 10px 24px;
+  background: var(--brand);
+  color: var(--brand-text);
+  border-bottom: 3px solid var(--brand-teal);
   position: sticky;
   top: 0;
   z-index: 10;
 }
 .topbar a {
-  color: var(--text);
+  color: var(--brand-text);
   text-decoration: none;
 }
 .topbar nav a {
-  color: var(--muted);
+  color: color-mix(in srgb, var(--brand-text) 72%, transparent);
   padding: 4px 6px;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 13px;
+  border-bottom: 2px solid transparent;
 }
-.topbar nav a:hover {
-  color: var(--text);
+.topbar nav a:hover,
+.topbar nav a[aria-current='page'] {
+  color: var(--brand-text);
+  border-bottom-color: var(--brand-teal);
 }
-.brand {
-  font-weight: 700;
-  font-size: 16px;
-  letter-spacing: 0.2px;
+.topbar :focus-visible {
+  outline-color: var(--brand-teal);
+}
+.topbar .badge {
+  background: transparent;
+  color: var(--brand-text);
+  border-color: color-mix(in srgb, var(--brand-text) 40%, transparent);
+}
+.topbar .badge.ok {
+  color: var(--brand-teal);
+  border-color: var(--brand-teal);
 }
 .content {
   max-width: 1100px;
@@ -183,4 +197,10 @@ label.btn {
 .plan-option ul {
   margin: 0 0 12px;
   padding-left: 18px;
+}
+.topbar .dot.rec {
+  background: #ff5c63;
+}
+.topbar .dot {
+  background: color-mix(in srgb, var(--brand-text) 55%, transparent);
 }

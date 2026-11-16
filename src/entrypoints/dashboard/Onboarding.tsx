@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { rpc } from '@/lib/messages';
 import { FREE_LIMITS, PRICES } from '@/lib/plan';
+import { Logo } from '@/ui/Logo';
 import { MirrorPanel } from './Mirror';
 import { go } from './nav';
 
@@ -17,8 +18,13 @@ export function Onboarding() {
 
   return (
     <section className="stack" style={{ maxWidth: 720 }}>
-      <h1>Welcome to EviCap</h1>
-      <p className="muted">A few things to know before you start.</p>
+      <div className="row" style={{ gap: 16, alignItems: 'center' }}>
+        <Logo size={64} wordmark={false} />
+        <div>
+          <h1 style={{ marginBottom: 2 }}>Welcome to EviCap</h1>
+          <p className="muted" style={{ margin: 0 }}>A few things to know before you start.</p>
+        </div>
+      </div>
 
       <div className="card step">
         <div className="step-num">1</div>

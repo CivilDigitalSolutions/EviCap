@@ -78,10 +78,10 @@ export async function printReportPdf(htmlPath: string, pdfPath: string, marking:
         preferCSSPageSize: true,
         displayHeaderFooter: true,
         headerTemplate: mark
-          ? `<div style="font: bold 9px sans-serif; letter-spacing: .06em; color: #1c2430; width: 100%; text-align: center;">${mark}</div>`
+          ? `<div style="font: bold 9px sans-serif; letter-spacing: .06em; color: #14213d; width: 100%; text-align: center;">${mark}</div>`
           : '<span></span>',
-        footerTemplate: `<div style="font: 8px sans-serif; color: #5d6877; width: 100%; padding: 0 14mm; display: flex; justify-content: space-between; gap: 4mm;"><span class="title" style="flex: 1"></span>${
-          mark ? `<span style="font-weight: bold; color: #1c2430; letter-spacing: .06em;">${mark}</span>` : ''
+        footerTemplate: `<div style="font: 8px sans-serif; color: #56627a; width: 100%; padding: 0 14mm; display: flex; justify-content: space-between; gap: 4mm;"><span class="title" style="flex: 1"></span>${
+          mark ? `<span style="font-weight: bold; color: #14213d; letter-spacing: .06em;">${mark}</span>` : ''
         }<span style="flex: 1; text-align: right;">Page <span class="pageNumber"></span> of <span class="totalPages"></span></span></div>`,
       });
       pdfBytes = base64ToBytes(pdf.data);

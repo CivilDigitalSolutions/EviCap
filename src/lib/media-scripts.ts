@@ -326,15 +326,15 @@ export function mediaTool(action: string, arg: Record<string, unknown>): unknown
       const shadow = host.attachShadow({ mode: 'closed' });
       shadow.innerHTML = `
         <style>
-          .box{position:absolute;box-sizing:border-box;border:2px dashed #2563eb;background:rgba(37,99,235,.08);pointer-events:auto;cursor:pointer;border-radius:3px}
-          .box:hover{background:rgba(37,99,235,.18)}
+          .box{position:absolute;box-sizing:border-box;border:2px dashed #0097a7;background:rgba(0,151,167,.08);pointer-events:auto;cursor:pointer;border-radius:3px}
+          .box:hover{background:rgba(0,151,167,.18)}
           .box.on{border:3px solid #16a34a;background:rgba(22,163,74,.22)}
-          .box .lbl{position:absolute;left:0;top:0;font:600 11px system-ui,sans-serif;color:#fff;background:#2563eb;padding:1px 5px;border-radius:0 0 4px 0}
+          .box .lbl{position:absolute;left:0;top:0;font:600 11px system-ui,sans-serif;color:#fff;background:#006d77;padding:1px 5px;border-radius:0 0 4px 0}
           .box.on .lbl{background:#16a34a}
           .bar{position:fixed;left:50%;top:12px;transform:translateX(-50%);display:flex;gap:8px;align-items:center;pointer-events:auto;
-               font:14px system-ui,sans-serif;background:#111827;color:#fff;padding:8px 10px;border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,.35)}
-          .bar button{font:inherit;border:0;border-radius:4px;padding:6px 10px;cursor:pointer;background:#374151;color:#fff}
-          .bar button.go{background:#16a34a}
+               font:14px system-ui,sans-serif;background:#14213d;color:#fff;padding:8px 10px;border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,.35)}
+          .bar button{font:inherit;border:0;border-radius:4px;padding:6px 10px;cursor:pointer;background:#2b3d61;color:#fff}
+          .bar button.go{background:#006d77}
           .bar button:disabled{opacity:.5;cursor:default}
         </style>
         <div class="bar" role="toolbar" aria-label="EviCap media picker">

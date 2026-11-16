@@ -144,7 +144,7 @@ export default defineBackground(() => {
     const s = state ?? (await getState());
     if (await getTabRecording()) {
       await chrome.action.setBadgeText({ text: 'REC' });
-      await chrome.action.setBadgeBackgroundColor({ color: '#dc2626' });
+      await chrome.action.setBadgeBackgroundColor({ color: '#d1242f' });
       await chrome.action.setTitle({ title: 'EviCap: recording this tab. Open EviCap to stop.' });
       return;
     }
@@ -155,7 +155,7 @@ export default defineBackground(() => {
     }
     await chrome.action.setBadgeText({ text: '●' });
     await chrome.action.setBadgeTextColor?.({ color: '#ffffff' });
-    await chrome.action.setBadgeBackgroundColor({ color: s.recording ? '#dc2626' : '#6b7280' });
+    await chrome.action.setBadgeBackgroundColor({ color: s.recording ? '#d1242f' : '#56627a' });
     await chrome.action.setTitle({ title: s.recording ? 'EviCap: recording' : 'EviCap: paused' });
   }
 
@@ -299,7 +299,7 @@ export default defineBackground(() => {
 
   function flashBadge(text: string) {
     void chrome.action.setBadgeText({ text });
-    void chrome.action.setBadgeBackgroundColor({ color: '#16a34a' });
+    void chrome.action.setBadgeBackgroundColor({ color: '#006d77' });
     setTimeout(() => void updateBadge(), 2500);
   }
 

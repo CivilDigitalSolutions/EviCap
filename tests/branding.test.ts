@@ -31,13 +31,13 @@ describe('report branding', () => {
   it('measures contrast as WCAG does', () => {
     expect(contrastRatio('#000000')).toBeCloseTo(21, 5);
     expect(contrastRatio('#ffffff')).toBeCloseTo(1, 5);
-    expect(contrastRatio('#1f4e8c')).toBeGreaterThan(4.5);
+    expect(contrastRatio('#006d77')).toBeGreaterThan(4.5);
   });
 
   it('tidies text and accepts a dark colour and a PNG logo', () => {
     const b = cleanBranding({ organisation: '  Acme\n  Investigations ', marking: ' OFFICIAL-SENSITIVE ', accent: '#0B5D3B', logoDataUrl: PNG });
     expect(b).toEqual({ organisation: 'Acme Investigations', marking: 'OFFICIAL-SENSITIVE', accent: '#0b5d3b', logoDataUrl: PNG });
-    expect(cleanBranding({ accent: '#1f4e8c' }).accent).toBeNull(); // EviCap's own blue is stored as "no colour"
+    expect(cleanBranding({ accent: '#006d77' }).accent).toBeNull(); // EviCap's own teal is stored as "no colour"
     expect(cleanBranding({ organisation: 'x'.repeat(500) }).organisation).toHaveLength(120);
     expect(isBranded(EMPTY_BRANDING)).toBe(false);
     expect(isBranded(b)).toBe(true);
@@ -76,7 +76,7 @@ describe('report branding', () => {
 
   it('leaves branding out when there is none, or when it is invalid', () => {
     for (const html of [report(null), report({ accent: '#ffffff' }), report({ logoDataUrl: 'data:text/html,<script>' })]) {
-      expect(html).toContain('--accent: #1f4e8c;');
+      expect(html).toContain('--accent: #006d77;');
       expect(html).not.toContain('Prepared by');
       expect(html).not.toContain('class="marking"');
       expect(html).not.toMatch(/<img/);

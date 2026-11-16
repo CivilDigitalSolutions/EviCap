@@ -3,6 +3,7 @@ import { CaptureButtons, openDashboard } from '@/ui/components';
 import { useLiveState } from '@/ui/hooks';
 import { ForensicControls } from '@/ui/ForensicControls';
 import { MediaControls } from '@/ui/MediaControls';
+import { Logo } from '@/ui/Logo';
 import { RecordControls } from '@/ui/RecordControls';
 import '@/ui/styles.css';
 
@@ -11,7 +12,9 @@ function Popup() {
   return (
     <main className="stack" style={{ padding: 14 }}>
       <div className="spread">
-        <h1 style={{ margin: 0 }}>EviCap</h1>
+        <h1 style={{ margin: 0 }}>
+          <Logo size={26} />
+        </h1>
         <button className="small" type="button" onClick={() => openDashboard()}>
           Dashboard
         </button>

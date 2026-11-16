@@ -7,6 +7,7 @@ import { unzipSync, strFromU8 } from 'fflate';
 import { chromium, type BrowserContext, type Page, type Worker } from 'playwright-core';
 import { afterAll, beforeAll, it } from 'vitest';
 import { testLicenceKey } from '../tests/e2e/licence';
+import { BRAND, MARK_ON_DARK, markSvg } from '../src/lib/brand';
 import type { AuditEvent, CaptureRecord } from '../src/lib/types';
 
 /**
@@ -36,7 +37,7 @@ const CHARGER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 40
 
 const shopPage = (title: string, body: string) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title} | Harbourline Deals</title>
 <style>
-body{margin:0;font-family:"Segoe UI",Arial,sans-serif;color:#222;background:#fff}
+html{background:#fff}body{margin:0;min-height:100vh;font-family:"Segoe UI",Arial,sans-serif;color:#222;background:#fff}
 header{background:#0f3d3e;color:#fff;padding:14px 28px;display:flex;align-items:center;gap:24px}
 header b{font-size:22px;letter-spacing:.02em}header input{flex:1;max-width:420px;padding:8px 10px;border:0;border-radius:3px;font:inherit}
 nav{background:#e7efef;padding:8px 28px;font-size:14px;color:#0f3d3e}nav span{margin-right:22px}
@@ -276,7 +277,7 @@ it('makes the store screenshots and promo tiles', async () => {
   await tab.setViewportSize({ width: 880, height: 744 });
   await tab.bringToFront();
   await pause(800);
-  const site = png(await tab.screenshot());
+  const site = png(await tab.screenshot({ fullPage: true })); // fullPage avoids a headless tiling glitch on new tabs
   const side = await newPage(400, 744);
   await side.goto(`chrome-extension://${extId}/sidepanel.html`);
   await pause(1500);
@@ -352,12 +353,14 @@ it('makes the store screenshots and promo tiles', async () => {
   await ver.screenshot({ path: join(OUT, 'screenshot-5-verifier.png') });
   await ver.close();
 
-  // Promo tiles.
-  const icon = (await import('node:fs')).readFileSync(resolve('public/icon/128.png'));
-  const tile = (w: number, h: number, big: boolean) => `<!doctype html><body style="margin:0;width:${w}px;height:${h}px;overflow:hidden;background:#13355f;color:#fff;font-family:'Segoe UI',sans-serif;display:flex;align-items:center;${big ? 'padding:0 90px' : 'padding:0 34px'};box-sizing:border-box;gap:${big ? 56 : 24}px">
-<img src="${png(icon)}" style="width:${big ? 168 : 96}px;height:${big ? 168 : 96}px">
-<div><div style="font-size:${big ? 72 : 40}px;font-weight:700;letter-spacing:-.01em">EviCap</div>
-<div style="font-size:${big ? 30 : 20}px;line-height:1.3;color:#d6e2f2;margin-top:${big ? 10 : 6}px">${big ? 'Capture and preserve web evidence<br>with hashes, signatures and an audit trail.' : 'Capture and preserve<br>web evidence.'}</div></div></body>`;
+  // Promo tiles, in the brand's navy with the mark, Montserrat and Security Teal.
+  const font = (await import('node:fs')).readFileSync(resolve('src/assets/fonts/montserrat-latin-wght-normal.woff2')).toString('base64');
+  const tile = (w: number, h: number, big: boolean) => `<!doctype html><style>@font-face{font-family:M;src:url(data:font/woff2;base64,${font}) format('woff2');font-weight:100 900}</style>
+<body style="margin:0;width:${w}px;height:${h}px;overflow:hidden;background:${BRAND.navy};color:#fff;font-family:M,sans-serif;display:flex;align-items:center;padding:0 ${big ? 110 : 36}px;box-sizing:border-box;gap:${big ? 54 : 22}px;border-bottom:${big ? 10 : 6}px solid ${BRAND.tealOnDark}">
+${markSvg(MARK_ON_DARK, { size: big ? 230 : 120 })}
+<div><div style="font-size:${big ? 104 : 52}px;font-weight:800;letter-spacing:-.02em;line-height:1">EviCap</div>
+<div style="font-size:${big ? 28 : 15}px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:${BRAND.tealOnDark};margin-top:${big ? 18 : 10}px;line-height:1.3">${big ? 'Unyielding truth in investigation' : 'Web evidence,<br>preserved'}</div>
+${big ? '<div style="font-size:24px;font-weight:500;color:#c9d4e3;margin-top:22px;line-height:1.45">Capture web pages with hashes, signatures<br>and an audit trail that holds up.</div>' : ''}</div></body>`;
   await renderHtml(tile(440, 280, false), 'promo-small-440x280.png', 440, 280);
   await renderHtml(tile(1400, 560, true), 'promo-marquee-1400x560.png', 1400, 560);
 });

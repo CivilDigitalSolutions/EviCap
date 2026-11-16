@@ -316,7 +316,7 @@ describe('Export and verification', () => {
       const { html } = await reportOf(ev);
       expect(html).not.toContain('Northshire Trading Standards');
       expect(html).not.toContain('OFFICIAL-SENSITIVE');
-      expect(html).toContain('--accent: #1f4e8c;');
+      expect(html).toContain('--accent: #006d77;');
     } finally {
       await rpc('activateLicence', await testLicenceKey());
     }

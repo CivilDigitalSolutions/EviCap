@@ -6,14 +6,17 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'">
 <title>EviCap Verifier</title>
 <style>
-:root { --bg: #f6f7f9; --card: #fff; --text: #1c2430; --muted: #5d6877; --border: #d9dee5; --ok: #17733a; --ok-bg: #e7f4ec; --bad: #b3261e; --bad-bg: #fbe9e7; --warn: #8a5a00; --warn-bg: #fdf3e1; --accent: #1f4e8c; }
+:root { --bg: #edf2f4; --card: #fff; --text: #14213d; --muted: #56627a; --border: #cdd7de; --ok: #17733a; --ok-bg: #e7f4ec; --bad: #b3261e; --bad-bg: #fbe9e7; --warn: #8a5a00; --warn-bg: #fdf3e1; --accent: #006d77; --head: #14213d; }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #14181e; --card: #1c222a; --text: #e6e9ee; --muted: #9aa5b3; --border: #2f3843; --ok: #6fcf97; --ok-bg: #16301f; --bad: #f28b82; --bad-bg: #3a1c1a; --warn: #f2c26b; --warn-bg: #3a2d12; --accent: #8ab4f8; }
+  :root { --bg: #0c1427; --card: #14213d; --text: #edf2f4; --muted: #a3b1c6; --border: #2b3d61; --ok: #5cc98a; --ok-bg: #12301f; --bad: #f28b82; --bad-bg: #3a1c1a; --warn: #f2c26b; --warn-bg: #3a2d12; --accent: #4fb3bc; --head: #edf2f4; }
+  body .brand .on-light { display: none; } body .brand .on-dark { display: block; }
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 main { max-width: 920px; margin: 0 auto; padding: 24px 16px 48px; }
-h1 { font-size: 22px; margin: 0 0 4px; }
+h1 { font-size: 22px; margin: 0; letter-spacing: -.01em; color: var(--head); }
+.brand { display: flex; align-items: center; gap: 12px; margin: 0 0 8px; }
+.brand svg { display: block; } .brand .on-dark { display: none; }
 h2 { font-size: 16px; margin: 24px 0 8px; }
 p { margin: 0 0 12px; }
 .muted { color: var(--muted); }
@@ -21,6 +24,7 @@ p { margin: 0 0 12px; }
 .pick { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 label.btn { display: inline-block; padding: 8px 14px; border: 1px solid var(--accent); color: var(--accent); border-radius: 4px; cursor: pointer; font-weight: 600; }
 label.btn.primary { background: var(--accent); color: var(--card); }
+label.btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; }
 progress { width: 100%; height: 6px; margin-top: 12px; }
 .verdict { padding: 12px 14px; border-radius: 4px; display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
@@ -45,7 +49,7 @@ summary { cursor: pointer; font-weight: 600; margin-top: 16px; }
 </head>
 <body>
 <main>
-  <h1>EviCap Verifier</h1>
+  <div class="brand"><!--EVICAP_MARK--><h1>EviCap Verifier</h1></div>
   <p class="muted">Checks an EviCap export on this computer. Nothing is uploaded and no internet connection is used.</p>
   <div class="card">
     <p>Choose the export ZIP file, or the folder you unzipped it to. You can also drop the ZIP onto this page.</p>

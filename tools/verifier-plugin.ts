@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { rolldown } from 'rolldown';
 import type { Plugin } from 'vite';
+import { MARK_ON_DARK, MARK_ON_LIGHT, markSvg } from '../src/lib/brand';
 
 /**
  * Builds the offline verifier (src/verifier) into one self-contained HTML
@@ -17,8 +18,10 @@ export async function buildVerifierHtml(root = process.cwd()): Promise<{ html: s
     const template = readFileSync(resolve(root, 'src/verifier/template.html'), 'utf8');
     if (!template.includes('/*VERIFIER*/')) throw new Error('verifier template has no /*VERIFIER*/ marker');
     return {
-      html: template.replace('/*VERIFIER*/', () => code),
-      files: [...Object.keys(chunk.modules), resolve(root, 'src/verifier/template.html')],
+      html: template
+        .replace('<!--EVICAP_MARK-->', () => `<span class="on-light">${markSvg(MARK_ON_LIGHT, { size: 40 })}</span><span class="on-dark">${markSvg(MARK_ON_DARK, { size: 40 })}</span>`)
+        .replace('/*VERIFIER*/', () => code),
+      files: [...Object.keys(chunk.modules), resolve(root, 'src/verifier/template.html'), resolve(root, 'src/lib/brand.ts')],
     };
   } finally {
     await bundle.close();

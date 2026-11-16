@@ -1,3 +1,4 @@
+import { MARK_ON_LIGHT, markSvg } from './brand';
 import { cleanBranding, DEFAULT_ACCENT, type Branding } from './branding';
 import { captureLabel } from './labels';
 import type { CaptureRecord, CaseRecord, Environment, NoteRecord, VisitRecord } from './types';
@@ -54,36 +55,38 @@ const bytesText = (n: number) =>
 const STYLE = `
 @page { size: A4; margin: 16mm 14mm 18mm; }
 * { box-sizing: border-box; }
-body { font: 10.5pt/1.45 "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; color: #1c2430; margin: 0; background: #fff; }
+body { font: 10.5pt/1.45 "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; color: #14213d; margin: 0; background: #fff; }
 main { max-width: 190mm; margin: 0 auto; padding: 8mm 0; }
-h1 { font-size: 20pt; margin: 0 0 2mm; }
+h1 { font-size: 20pt; margin: 0 0 2mm; letter-spacing: -.01em; }
 h2 { font-size: 13pt; margin: 8mm 0 3mm; padding-bottom: 1.5mm; border-bottom: 1.5px solid var(--accent); color: var(--accent); break-after: avoid; }
 h3 { font-size: 11pt; margin: 0 0 2mm; }
 p { margin: 0 0 2.5mm; }
-.muted { color: #5d6877; }
+.muted { color: #56627a; }
 .mono { font-family: Consolas, "Cascadia Mono", ui-monospace, monospace; font-size: 8.5pt; overflow-wrap: anywhere; }
 .cover { border-bottom: 3px solid var(--accent); padding-bottom: 5mm; margin-bottom: 4mm; display: flex; justify-content: space-between; gap: 6mm; align-items: flex-end; }
 .cover img { max-height: 18mm; max-width: 60mm; }
 .marking { text-align: center; font-weight: 700; letter-spacing: .06em; font-size: 9.5pt; margin: 0 0 4mm; }
 .prepared { margin-top: 1mm; }
-.kicker { text-transform: uppercase; letter-spacing: .08em; font-size: 8.5pt; color: #5d6877; margin-bottom: 1mm; }
+.kicker { text-transform: uppercase; letter-spacing: .08em; font-size: 8.5pt; color: #56627a; margin-bottom: 1mm; }
 table { width: 100%; border-collapse: collapse; margin: 0 0 3mm; }
-th, td { text-align: left; vertical-align: top; padding: 1.4mm 2mm; border-bottom: 1px solid #d9dee5; }
-th { font-size: 8.5pt; text-transform: uppercase; letter-spacing: .04em; color: #5d6877; font-weight: 600; }
+th, td { text-align: left; vertical-align: top; padding: 1.4mm 2mm; border-bottom: 1px solid #cdd7de; }
+th { font-size: 8.5pt; text-transform: uppercase; letter-spacing: .04em; color: #56627a; font-weight: 600; }
 thead { display: table-header-group; }
 tr { break-inside: avoid; }
 table.kv th { width: 42mm; text-transform: none; letter-spacing: 0; font-size: 9.5pt; }
 .small { font-size: 8.5pt; }
-.box { border: 1px solid #d9dee5; border-left: 3px solid var(--accent); padding: 3mm 4mm; margin: 3mm 0; background: #f6f8fb; }
-.exhibit { border: 1px solid #d9dee5; border-radius: 3px; padding: 4mm; margin: 0 0 4mm; break-inside: avoid; }
+.box { border: 1px solid #cdd7de; border-left: 3px solid var(--accent); padding: 3mm 4mm; margin: 3mm 0; background: #f3f6f8; }
+.exhibit { border: 1px solid #cdd7de; border-radius: 3px; padding: 4mm; margin: 0 0 4mm; break-inside: avoid; }
 .exhibit .head { display: flex; justify-content: space-between; gap: 4mm; margin-bottom: 2mm; }
 .exhibit .tag { font-weight: 700; color: var(--accent); white-space: nowrap; }
 .exhibit .grid { display: grid; grid-template-columns: 58mm 1fr; gap: 4mm; }
-.exhibit .thumb { width: 58mm; border: 1px solid #d9dee5; }
+.exhibit .thumb { width: 58mm; border: 1px solid #cdd7de; }
 .exhibit .nothumb { width: 58mm; height: 30mm; border: 1px dashed #c3cad3; display: flex; align-items: center; justify-content: center; color: #8a94a1; font-size: 8.5pt; }
 .warn { color: #8a5a00; }
 .note { border-left: 2px solid #c3cad3; padding-left: 3mm; margin: 1.5mm 0; white-space: pre-wrap; }
-footer { break-before: avoid; margin-top: 4mm; font-size: 8.5pt; color: #5d6877; border-top: 1px solid #d9dee5; padding-top: 2mm; }
+footer { break-before: avoid; margin-top: 4mm; font-size: 8.5pt; color: #56627a; border-top: 1px solid #cdd7de; padding-top: 2mm; display: flex; gap: 2mm; align-items: center; }
+footer svg { flex: none; }
+.evicap-logo { display: flex; align-items: center; gap: 2.5mm; font-weight: 800; font-size: 16pt; color: #14213d; letter-spacing: -.01em; }
 `;
 
 function filesTable(c: CaptureRecord) {
@@ -148,7 +151,7 @@ ${brand?.marking ? `<div class="marking">${esc(brand.marking)}</div>` : ''}
     <div class="muted">${[c.reference ? `Reference ${esc(c.reference)}` : '', esc(c.organisation || '')].filter(Boolean).join(' · ')}</div>
     ${brand?.organisation ? `<div class="prepared">Prepared by <strong>${esc(brand.organisation)}</strong></div>` : ''}
   </div>
-  ${brand?.logoDataUrl ? `<img src="${brand.logoDataUrl}" alt="${esc(brand.organisation || 'Logo')}">` : ''}
+  ${brand?.logoDataUrl ? `<img src="${brand.logoDataUrl}" alt="${esc(brand.organisation || 'Logo')}">` : brand?.organisation ? '' : `<div class="evicap-logo">${markSvg(MARK_ON_LIGHT, { size: 44 })}EviCap</div>`}
 </div>
 
 <table class="kv">
@@ -229,7 +232,7 @@ ${
 <h2>Audit log summary</h2>
 <table class="small"><thead><tr><th>Event</th><th>Count</th></tr></thead><tbody>${counts.map(([t, n]) => `<tr><td class="mono">${esc(t)}</td><td>${n}</td></tr>`).join('')}</tbody></table>
 <p class="small muted">The full log is in audit-log.jsonl, one event per line.</p>
-<footer>Generated by ${esc(r.software.name)} ${esc(r.software.version)} on ${utcText(r.createdAtUtc)}. Export ${esc(r.exportId)}.</footer>
+<footer>${markSvg(MARK_ON_LIGHT, { size: 14 })}<span>Generated by ${esc(r.software.name)} ${esc(r.software.version)} on ${utcText(r.createdAtUtc)}. Export ${esc(r.exportId)}.</span></footer>
 </section>
 </main></body></html>`;
 }

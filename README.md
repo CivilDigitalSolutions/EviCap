@@ -26,6 +26,10 @@ Built so far (spec milestones M0 to M5):
 
 Still to do before launch: a first live purchase test (SPEC §18) and submitting to the Chrome Web Store and Edge Add-ons. Everything the store dashboard asks for (listing text, permission justifications, privacy answers) is in `CHROMEWEBSTORE.md`; `npm run zip` makes the upload, and `npm run store:shots` remakes the screenshots and promo tiles in `store/`.
 
+## Brand
+
+Navy `#14213d` (Primary Navy), teal `#006d77` (Security Teal) and grey `#edf2f4` (Data Grey), with the shield-and-lens mark. The colours and the mark are defined once in `src/lib/brand.ts`, which the icons (`node tools/make-icons.mts`), the app (`src/ui/Logo.tsx`, `src/ui/styles.css`), the report and the verifier all use. Headings and the wordmark use Montserrat (SIL Open Font License), bundled in `src/assets/fonts/`; body text uses the system font. Recording red stays red: it is a warning, not decoration. Reports use the teal for headings unless a Pro user sets their own colour.
+
 ## Licence keys
 
 Civil Digital issues Pro licence keys offline:
@@ -90,4 +94,4 @@ Tab recording needs a real click on the toolbar button, so it is checked by hand
 | `src/entrypoints/offscreen/` | Writes the disk mirror; records tabs |
 | `src/entrypoints/popup/`, `sidepanel/`, `dashboard/` | User interface (React) |
 | `tests/` | Unit tests; `tests/e2e/` browser tests |
-| `tools/make-icons.mjs` | Draws the icons in `public/icon/` |
+| `tools/make-icons.mts` | Draws the icons in `public/icon/` from the mark in `src/lib/brand.ts` (`node tools/make-icons.mts`) |

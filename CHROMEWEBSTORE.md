@@ -63,8 +63,8 @@ Email info@civildigital.co.uk.
 | Screenshot 3: a forensic capture with its hashes and signature | 1280×800 | ✅ | `store/screenshot-3-forensic-capture.png` |
 | Screenshot 4: export report (PDF) with branding | 1280×800 | ✅ | `store/screenshot-4-report.png` |
 | Screenshot 5: offline verifier passing an export | 1280×800 | ✅ | `store/screenshot-5-verifier.png` |
-| Small promo tile | 440×280 | ✅ | `store/promo-small-440x280.png` |
-| Marquee promo tile | 1400×560 | ✅ (optional) | `store/promo-marquee-1400x560.png` |
+| Small promo tile | 440×280 | ✅ Navy with the mark and wordmark | `store/promo-small-440x280.png` |
+| Marquee promo tile | 1400×560 | ✅ (optional) With the tagline "Unyielding truth in investigation" | `store/promo-marquee-1400x560.png` |
 
 All images are made by `npm run store:shots` (`tools/store-shots.shots.ts`). It loads the e2e build into Edge and serves a fictional shop on `.example` addresses. The case, the council (Northshire Trading Standards), its logo and the officer are all made up. Run it again after any visible change to the UI. The screenshots are 24-bit PNGs with no transparency, as the store asks.
 

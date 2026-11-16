@@ -21,7 +21,7 @@ export interface Branding {
 }
 
 export const EMPTY_BRANDING: Branding = { organisation: '', logoDataUrl: null, accent: null, marking: '' };
-export const DEFAULT_ACCENT = '#1f4e8c';
+export const DEFAULT_ACCENT = '#006d77'; // EviCap's Security Teal (src/lib/brand.ts)
 export const BRANDING_LIMITS = { organisation: 120, marking: 60, logoChars: 400_000, logoWidth: 900, logoHeight: 300 };
 /** Headings in the accent colour must stay readable on white paper (WCAG AA for normal text). */
 export const MIN_ACCENT_CONTRAST = 4.5;

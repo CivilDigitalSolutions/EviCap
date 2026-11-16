@@ -152,7 +152,7 @@ export function BrandingCard() {
             </div>
           </label>
           <button type="button" className="btn small" onClick={() => setColourText(DEFAULT_ACCENT)}>
-            Use EviCap blue
+            Use EviCap teal
           </button>
         </div>
         {!colourOk && <p className="small" style={{ color: 'var(--warn)' }}>Write the colour as #rrggbb.</p>}
@@ -205,7 +205,7 @@ function ReportCoverPreview({ branding }: { branding: Branding }) {
       aria-hidden="true"
       style={{
         background: '#fff',
-        color: '#1c2430',
+        color: '#14213d',
         border: '1px solid var(--border)',
         borderRadius: 3,
         padding: '14px 18px',
@@ -227,9 +227,9 @@ function ReportCoverPreview({ branding }: { branding: Branding }) {
         }}
       >
         <div>
-          <div style={{ textTransform: 'uppercase', letterSpacing: '.08em', fontSize: 10, color: '#5d6877' }}>Evidence report</div>
+          <div style={{ textTransform: 'uppercase', letterSpacing: '.08em', fontSize: 10, color: '#56627a' }}>Evidence report</div>
           <div style={{ fontSize: 18, fontWeight: 600 }}>Case name</div>
-          <div style={{ color: '#5d6877' }}>Reference REF/001</div>
+          <div style={{ color: '#56627a' }}>Reference REF/001</div>
           {branding.organisation && (
             <div>
               Prepared by <strong>{branding.organisation}</strong>
@@ -241,7 +241,7 @@ function ReportCoverPreview({ branding }: { branding: Branding }) {
       <div style={{ color: accent, fontWeight: 600, fontSize: 13, borderBottom: `1.5px solid ${accent}`, margin: '10px 0 4px', paddingBottom: 2 }}>
         About this report
       </div>
-      <div style={{ color: '#5d6877' }}>This report was produced by EviCap…</div>
+      <div style={{ color: '#56627a' }}>This report was produced by EviCap…</div>
     </div>
   );
 }

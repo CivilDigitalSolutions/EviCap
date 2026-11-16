@@ -4,6 +4,7 @@ import { getMeta } from '@/lib/db';
 import { MIRROR_OFF, type MirrorStatus } from '@/lib/mirror-queue';
 import { storageStatus } from '@/lib/opfs';
 import { Banner, RecordingIndicator } from '@/ui/components';
+import { Logo } from '@/ui/Logo';
 import { useLive, useLiveState, useSettings } from '@/ui/hooks';
 import '@/ui/styles.css';
 import './dashboard.css';
@@ -95,13 +96,19 @@ function App() {
   return (
     <div className="shell">
       <header className="topbar">
-        <a href="#/" className="brand">
-          EviCap
+        <a href="#/" className="brand" aria-label="EviCap: all cases">
+          <Logo size={30} tone="dark" />
         </a>
         <nav className="row">
-          <a href="#/">Cases</a>
-          <a href="#/verify">Verify</a>
-          <a href="#/settings">Settings</a>
+          <a href="#/" aria-current={!section || section === 'case' || section === 'new' ? 'page' : undefined}>
+            Cases
+          </a>
+          <a href="#/verify" aria-current={section === 'verify' ? 'page' : undefined}>
+            Verify
+          </a>
+          <a href="#/settings" aria-current={section === 'settings' ? 'page' : undefined}>
+            Settings
+          </a>
         </nav>
         <div className="grow" />
         <PlanBadge />
