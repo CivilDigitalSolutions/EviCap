@@ -7,6 +7,7 @@ import { DEFAULT_DENYLIST } from '@/lib/settings';
 import { formatBytes } from '@/lib/util';
 import { ErrorText, Hash } from '@/ui/components';
 import { useAction, useLive, useSettings } from '@/ui/hooks';
+import { BrandingCard } from './Branding';
 import { MirrorPanel } from './Mirror';
 import { PlanCard } from './Plan';
 
@@ -127,6 +128,8 @@ export function SettingsPage() {
         </label>
         <p className="small muted">Either way, every version the page offered is listed in the capture's metadata.</p>
       </div>
+
+      <BrandingCard />
 
       <div className="card stack">
         <h2>Keyboard shortcuts</h2>

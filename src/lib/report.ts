@@ -1,3 +1,4 @@
+import { cleanBranding, DEFAULT_ACCENT, type Branding } from './branding';
 import { captureLabel } from './labels';
 import type { CaptureRecord, CaseRecord, Environment, NoteRecord, VisitRecord } from './types';
 
@@ -30,8 +31,8 @@ export interface ReportInput {
   exhibits: ReportExhibit[];
   visits: VisitRecord[];
   caseNotes: NoteRecord[];
-  /** Pro: organisation name and logo on the cover (SPEC §9.3). */
-  branding?: { organisation?: string; logoDataUrl?: string | null } | null;
+  /** Pro: organisation name, logo, colour and marking (SPEC §9.3). Checked again here. */
+  branding?: Partial<Branding> | null;
 }
 
 const esc = (s: unknown) =>
@@ -56,13 +57,15 @@ const STYLE = `
 body { font: 10.5pt/1.45 "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; color: #1c2430; margin: 0; background: #fff; }
 main { max-width: 190mm; margin: 0 auto; padding: 8mm 0; }
 h1 { font-size: 20pt; margin: 0 0 2mm; }
-h2 { font-size: 13pt; margin: 8mm 0 3mm; padding-bottom: 1.5mm; border-bottom: 1.5px solid #1f4e8c; color: #1f4e8c; break-after: avoid; }
+h2 { font-size: 13pt; margin: 8mm 0 3mm; padding-bottom: 1.5mm; border-bottom: 1.5px solid var(--accent); color: var(--accent); break-after: avoid; }
 h3 { font-size: 11pt; margin: 0 0 2mm; }
 p { margin: 0 0 2.5mm; }
 .muted { color: #5d6877; }
 .mono { font-family: Consolas, "Cascadia Mono", ui-monospace, monospace; font-size: 8.5pt; overflow-wrap: anywhere; }
-.cover { border-bottom: 3px solid #1f4e8c; padding-bottom: 5mm; margin-bottom: 4mm; display: flex; justify-content: space-between; gap: 6mm; align-items: flex-end; }
+.cover { border-bottom: 3px solid var(--accent); padding-bottom: 5mm; margin-bottom: 4mm; display: flex; justify-content: space-between; gap: 6mm; align-items: flex-end; }
 .cover img { max-height: 18mm; max-width: 60mm; }
+.marking { text-align: center; font-weight: 700; letter-spacing: .06em; font-size: 9.5pt; margin: 0 0 4mm; }
+.prepared { margin-top: 1mm; }
 .kicker { text-transform: uppercase; letter-spacing: .08em; font-size: 8.5pt; color: #5d6877; margin-bottom: 1mm; }
 table { width: 100%; border-collapse: collapse; margin: 0 0 3mm; }
 th, td { text-align: left; vertical-align: top; padding: 1.4mm 2mm; border-bottom: 1px solid #d9dee5; }
@@ -71,10 +74,10 @@ thead { display: table-header-group; }
 tr { break-inside: avoid; }
 table.kv th { width: 42mm; text-transform: none; letter-spacing: 0; font-size: 9.5pt; }
 .small { font-size: 8.5pt; }
-.box { border: 1px solid #d9dee5; border-left: 3px solid #1f4e8c; padding: 3mm 4mm; margin: 3mm 0; background: #f6f8fb; }
+.box { border: 1px solid #d9dee5; border-left: 3px solid var(--accent); padding: 3mm 4mm; margin: 3mm 0; background: #f6f8fb; }
 .exhibit { border: 1px solid #d9dee5; border-radius: 3px; padding: 4mm; margin: 0 0 4mm; break-inside: avoid; }
 .exhibit .head { display: flex; justify-content: space-between; gap: 4mm; margin-bottom: 2mm; }
-.exhibit .tag { font-weight: 700; color: #1f4e8c; white-space: nowrap; }
+.exhibit .tag { font-weight: 700; color: var(--accent); white-space: nowrap; }
 .exhibit .grid { display: grid; grid-template-columns: 58mm 1fr; gap: 4mm; }
 .exhibit .thumb { width: 58mm; border: 1px solid #d9dee5; }
 .exhibit .nothumb { width: 58mm; height: 30mm; border: 1px dashed #c3cad3; display: flex; align-items: center; justify-content: center; color: #8a94a1; font-size: 8.5pt; }
@@ -122,22 +125,30 @@ function exhibitBlock(x: ReportExhibit) {
 
 export function buildReportHtml(r: ReportInput): string {
   const c = r.case;
-  const org = r.branding?.organisation || c.organisation;
+  let brand: Branding | null = null;
+  try {
+    brand = r.branding ? cleanBranding(r.branding) : null;
+  } catch {
+    brand = null; // invalid branding is left out rather than stopping the export
+  }
+  const accent = brand?.accent ?? DEFAULT_ACCENT;
   const counts = Object.entries(r.eventCounts).sort(([a], [b]) => a.localeCompare(b));
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Evidence report: ${esc(c.name)}${c.reference ? ` (${esc(c.reference)})` : ''}</title>
-<style>${STYLE}</style></head>
+<style>:root { --accent: ${accent}; }${STYLE}</style></head>
 <body><main>
+${brand?.marking ? `<div class="marking">${esc(brand.marking)}</div>` : ''}
 <div class="cover">
   <div>
     <div class="kicker">${r.kind === 'exhibits' ? 'Evidence report · selected exhibits' : 'Evidence report'}</div>
     <h1>${esc(c.name)}</h1>
-    <div class="muted">${[c.reference ? `Reference ${esc(c.reference)}` : '', esc(org || '')].filter(Boolean).join(' · ')}</div>
+    <div class="muted">${[c.reference ? `Reference ${esc(c.reference)}` : '', esc(c.organisation || '')].filter(Boolean).join(' · ')}</div>
+    ${brand?.organisation ? `<div class="prepared">Prepared by <strong>${esc(brand.organisation)}</strong></div>` : ''}
   </div>
-  ${r.branding?.logoDataUrl ? `<img src="${r.branding.logoDataUrl}" alt="${esc(org)}">` : ''}
+  ${brand?.logoDataUrl ? `<img src="${brand.logoDataUrl}" alt="${esc(brand.organisation || 'Logo')}">` : ''}
 </div>
 
 <table class="kv">

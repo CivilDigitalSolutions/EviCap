@@ -22,6 +22,7 @@ import { storageStatus } from '@/lib/opfs';
 import * as recorder from '@/lib/recorder';
 import { takeScreenshot, type ScreenshotMode } from '@/lib/screenshots';
 import { getSettings, getState, saveSettings, type LiveState, type Settings } from '@/lib/settings';
+import { brandingSummary, cleanBranding, getBranding, setBranding } from '@/lib/branding';
 import { dismissJob, markInterruptedJobs } from '@/lib/jobs';
 import { printReportPdf, recordExport, recordVerify } from '@/lib/export-sw';
 import { forensicCapture } from '@/lib/forensic';
@@ -421,6 +422,16 @@ export default defineBackground(() => {
       await setTag(caseId, kind, targetId, tag, add);
       broadcast({ scope: kind === 'visit' ? 'visits' : 'captures', caseId });
     },
+    async saveBranding(input) {
+      const before = await getBranding();
+      const after = await setBranding(cleanBranding(input));
+      const state = await getState();
+      const [from, to] = [await brandingSummary(before), await brandingSummary(after)];
+      if (state.activeCaseId && JSON.stringify(from) !== JSON.stringify(to)) {
+        await appendEvent(state.activeCaseId, 'settings.changed', { changes: { reportBranding: { from, to } } });
+      }
+      return after;
+    },
     async saveSettings(patch: Partial<Settings>) {
       const before = await getSettings();
       const after = await saveSettings(patch);
@@ -479,8 +490,8 @@ export default defineBackground(() => {
       await startTrial();
       broadcast({ scope: 'state' });
     },
-    async printReportPdf(htmlPath, pdfPath) {
-      await printReportPdf(htmlPath, pdfPath);
+    async printReportPdf(htmlPath, pdfPath, marking) {
+      await printReportPdf(htmlPath, pdfPath, typeof marking === 'string' ? marking : null);
     },
     async recordExport(caseId, rec) {
       await recordExport(caseId, rec);

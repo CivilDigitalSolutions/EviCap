@@ -6,6 +6,9 @@ import { sleep } from './util';
 
 /** Service-worker side of export (SPEC F10) and verification (F11). */
 
+const escHtml = (s: string) =>
+  s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
 export interface ExportRecord {
   exportId: string;
   kind: 'case' | 'exhibits';
@@ -16,6 +19,8 @@ export interface ExportRecord {
   manifestHash: Sha256;
   captureIds: string[];
   reportPdf: string;
+  /** Whether the report carries the organisation's branding (Pro). */
+  branded?: boolean;
 }
 
 /** Log the export and its file hash. It can't be inside the ZIP it describes. */
@@ -40,7 +45,7 @@ export async function recordVerify(caseId: string, rec: VerifyRecord) {
  * Print report.html to PDF with Page.printToPDF in a background tab showing
  * the print page. The browser's "debugging" bar appears briefly.
  */
-export async function printReportPdf(htmlPath: string, pdfPath: string) {
+export async function printReportPdf(htmlPath: string, pdfPath: string, marking: string | null = null) {
   if (!/^exports\/[0-9a-f-]{36}\/report\.html$/.test(htmlPath) || !/^exports\/[0-9a-f-]{36}\/report\.pdf$/.test(pdfPath)) {
     throw new Error('Not an export path');
   }
@@ -67,13 +72,17 @@ export async function printReportPdf(htmlPath: string, pdfPath: string) {
         timeout: 60_000,
       });
       if (ready.exceptionDetails || ready.result.value !== true) throw new Error(ready.exceptionDetails?.text ?? 'The report did not load');
+      const mark = marking ? escHtml(marking.slice(0, 60)) : '';
       const pdf = await send<{ data: string }>('Page.printToPDF', {
         printBackground: true,
         preferCSSPageSize: true,
         displayHeaderFooter: true,
-        headerTemplate: '<span></span>',
-        footerTemplate:
-          '<div style="font: 8px sans-serif; color: #5d6877; width: 100%; padding: 0 14mm; display: flex; justify-content: space-between;"><span class="title"></span><span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span></div>',
+        headerTemplate: mark
+          ? `<div style="font: bold 9px sans-serif; letter-spacing: .06em; color: #1c2430; width: 100%; text-align: center;">${mark}</div>`
+          : '<span></span>',
+        footerTemplate: `<div style="font: 8px sans-serif; color: #5d6877; width: 100%; padding: 0 14mm; display: flex; justify-content: space-between; gap: 4mm;"><span class="title" style="flex: 1"></span>${
+          mark ? `<span style="font-weight: bold; color: #1c2430; letter-spacing: .06em;">${mark}</span>` : ''
+        }<span style="flex: 1; text-align: right;">Page <span class="pageNumber"></span> of <span class="totalPages"></span></span></div>`,
       });
       pdfBytes = base64ToBytes(pdf.data);
     } finally {

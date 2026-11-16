@@ -1,4 +1,5 @@
 import verifierHtml from 'virtual:evicap-verifier';
+import { getBranding, isBranded } from './branding';
 import type { ExportedEvent } from './chain';
 import { getCase, listAudit, listCaptures, listNotes, listVisits } from './db';
 import { getEnvironment } from './environment';
@@ -180,7 +181,11 @@ export async function exportCase(
   const c = await getCase(caseId);
   if (!c) throw new Error('Case not found');
   const kind: ExportManifest['kind'] = opts.captureIds ? 'exhibits' : 'case';
-  if (kind === 'exhibits' && !(await isPro())) throw proRequired('exhibitExport');
+  const pro = await isPro();
+  if (kind === 'exhibits' && !pro) throw proRequired('exhibitExport');
+  // Branded reports are Pro; on Free the saved branding is kept but not used.
+  const saved = pro ? await getBranding() : null;
+  const branding = isBranded(saved) ? saved : null;
   onProgress({ stage: 'Reading the case', done: 0, total: 1 });
   const [allCaptures, allVisits, allNotes, events, key, environment] = await Promise.all([
     listCaptures(caseId),
@@ -270,6 +275,7 @@ export async function exportCase(
     exhibits,
     visits,
     caseNotes: notes.filter((n) => n.targetKind === 'case'),
+    branding,
   });
   await writeFile(`${dir}/report.html`, new TextEncoder().encode(reportHtml));
 
@@ -277,7 +283,7 @@ export async function exportCase(
   let reportPdf = 'included';
   let pdf: Blob | null = null;
   try {
-    await rpc('printReportPdf', `${dir}/report.html`, `${dir}/report.pdf`);
+    await rpc('printReportPdf', `${dir}/report.html`, `${dir}/report.pdf`, branding?.marking || null);
     pdf = await readFile(`${dir}/report.pdf`);
   } catch (err) {
     reportPdf = `not included: ${(err as Error).message}. Open report.html and print it to PDF from the browser.`;
@@ -368,6 +374,7 @@ export async function exportCase(
       manifestHash: await sha256Json(manifest),
       captureIds: manifest.captures.map((x) => x.id),
       reportPdf: pdf ? 'included' : 'not included',
+      branded: !!branding,
     });
     return { exportId, fileName, path: zipPath, bytes: file.size, sha256, reportPdf };
   } catch (err) {

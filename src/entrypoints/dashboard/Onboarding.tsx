@@ -65,8 +65,8 @@ export function Onboarding() {
           <h2>Free and Pro</h2>
           <p>
             The free plan covers {FREE_LIMITS.openCases} open cases at a time, {FREE_LIMITS.forensicPerMonth} forensic captures a month and
-            single image capture. Pro ({PRICES.monthly} or {PRICES.yearly}) adds the media picker, tab recording and exhibit-only
-            export, with no limits. Hashing, signing, export and verification are on every plan, and your evidence is never locked.
+            single image capture. Pro ({PRICES.monthly} or {PRICES.yearly}) adds the media picker, tab recording, exhibit-only
+            export and branded reports, with no limits. Hashing, signing, export and verification are on every plan, and your evidence is never locked.
           </p>
           <p className="small muted">
             Try Pro free for 14 days from Settings → Plan. The trial runs on this computer and asks for nothing.

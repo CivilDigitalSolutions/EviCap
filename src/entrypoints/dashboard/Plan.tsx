@@ -90,6 +90,7 @@ export function PlanCard() {
             <li>Pick several images and videos at once</li>
             <li>Record a tab as video, for streamed or protected video</li>
             <li>Export selected exhibits only</li>
+            <li>Your organisation's name, logo and marking on reports</li>
           </ul>
           <div className="row">
             {online && BILLING.checkoutMonthly && (
