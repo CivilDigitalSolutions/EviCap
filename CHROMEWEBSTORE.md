@@ -213,11 +213,12 @@ All evidence is processed and stored on the user's own computer. The only data t
 
 ## Distribution
 
-**Visibility:** Public · **Regions:** All regions · **Pricing in the dashboard:** Free (Pro is sold through Stripe, not the store)
+**Visibility:** Public · **Regions:** All regions · **Payments in the dashboard:** Contains in-app purchases. EviCap is free to install, but Pro is bought from inside the extension (through Stripe), and Google's "Free of charge" option is only for items with nothing to buy. This shows an "in-app purchases" badge on the listing.
 
 ## Developer information
 
-- **Publisher:** Civil Digital
+- **Publisher:** Civil Digital (the publisher display name on the dashboard's Settings page; it starts as the Google account's email address)
+- **Trader:** Yes. Verified as CIVIL DIGITAL through the Google payments profile, with D-U-N-S; the address and phone number are shown on the listing
 - **Contact email:** info@civildigital.co.uk (Google sends policy and takedown notices here, so it must be monitored)
 - **Support:** info@civildigital.co.uk
 - **Homepage:** https://github.com/CivilDigitalSolutions/EviCap, or a product page on civildigital.co.uk once there is one
