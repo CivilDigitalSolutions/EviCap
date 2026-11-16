@@ -28,6 +28,7 @@ export default defineConfig({
       'alarms',
       'contextMenus',
       'tabCapture',
+      'pageCapture',
     ],
     host_permissions: ['<all_urls>'],
     action: { default_title: 'EviCap' },
@@ -54,6 +55,9 @@ export default defineConfig({
       },
       'toggle-recording': {
         description: 'Start or pause recording',
+      },
+      'capture-forensic': {
+        description: 'Forensic capture of the page (WACZ)',
       },
       'record-tab': {
         description: 'Start or stop recording this tab as video',

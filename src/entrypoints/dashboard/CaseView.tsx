@@ -210,6 +210,7 @@ function Visits({ caseId }: { caseId: string }) {
               <th>Page</th>
               <th>How</th>
               <th>In focus</th>
+              <th>Capture</th>
               <th>Tags</th>
             </tr>
           </thead>
@@ -244,6 +245,9 @@ function Visits({ caseId }: { caseId: string }) {
                   {v.incognito && ' · incognito'}
                 </td>
                 <td className="small">{v.leftAtUtc ? `${Math.round(v.focusedMs / 1000)} s` : 'open'}</td>
+                <td className="small">
+                  {v.autoCaptureId ? <a href={`#/case/${caseId}/capture/${v.autoCaptureId}`}>View</a> : <span className="muted">—</span>}
+                </td>
                 <td>
                   <Tags
                     tags={v.tags}

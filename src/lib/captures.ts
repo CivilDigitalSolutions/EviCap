@@ -40,6 +40,8 @@ export interface CaptureHeader {
   degraded?: string[];
   parent?: string | null;
   meta?: Record<string, unknown>;
+  /** Set this visit's `autoCaptureId` in the same transaction (auto-capture, F3). */
+  linkVisitId?: string;
 }
 
 export interface NewCapture extends CaptureHeader {
@@ -56,7 +58,7 @@ export class StorageFullError extends Error {
 export async function storeCapture(input: NewCapture): Promise<CaptureRecord> {
   const pending = await beginCapture(input);
   try {
-    return await completeCapture(pending, input.files);
+    return await completeCapture(pending, input.files, { linkVisitId: input.linkVisitId });
   } catch (err) {
     await failCapture(pending, (err as Error)?.message ?? String(err));
     throw err;
@@ -129,7 +131,7 @@ async function writeCaptureFile(caseId: string, captureId: string, f: NewCapture
 export async function completeCapture(
   pending: CaptureRecord,
   inputFiles: NewCaptureFile[],
-  patch: { degraded?: string[]; meta?: Record<string, unknown>; title?: string; url?: string } = {},
+  patch: { degraded?: string[]; meta?: Record<string, unknown>; title?: string; url?: string; linkVisitId?: string } = {},
 ): Promise<CaptureRecord> {
   const db = await getDb();
   const { id, caseId } = pending;
@@ -184,8 +186,12 @@ export async function completeCapture(
         degraded: header.degraded,
       },
       {
-        stores: ['captures'],
+        stores: patch.linkVisitId ? ['captures', 'visits'] : ['captures'],
         alsoWrite(tx, event) {
+          if (patch.linkVisitId) {
+            const visits = tx.objectStore('visits');
+            void visits.get(patch.linkVisitId).then((v) => v && visits.put({ ...v, autoCaptureId: id }));
+          }
           record = {
             ...header,
             status: 'complete',

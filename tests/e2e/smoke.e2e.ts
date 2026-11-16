@@ -131,7 +131,7 @@ describe('EviCap in a real browser', () => {
   });
 
   it('creates a case and records visits, redirects and in-page navigation', async () => {
-    ({ id: caseId } = await rpc<{ id: string }>('createCase', { name: 'E2E case', reference: 'E2E-1' }));
+    ({ id: caseId } = await rpc<{ id: string }>('createCase', { name: 'E2E case', reference: 'E2E-1', autoCapture: false }));
     await rpc('setActiveCase', caseId);
     await rpc('setRecording', true);
 

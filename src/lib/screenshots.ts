@@ -184,11 +184,11 @@ async function element(req: ScreenshotRequest) {
   });
 }
 
-function base64ToBytes(b64: string): Uint8Array {
+export function base64ToBytes(b64: string): Uint8Array {
   return dataUrlToBytes(',' + b64);
 }
 
-type Send = <T>(method: string, params?: object) => Promise<T>;
+export type Send = <T>(method: string, params?: object) => Promise<T>;
 
 /**
  * Attach chrome.debugger for one operation (Chrome shows its "debugging" bar
@@ -220,7 +220,7 @@ export async function withDebugger<T>(tabId: number, fn: (send: Send) => Promise
  * that repeats the first screen down the page (seen in Edge 157). Wait until
  * the viewport size is stable, then two animation frames.
  */
-async function settleAfterAttach(send: Send) {
+export async function settleAfterAttach(send: Send) {
   type Metrics = { cssVisualViewport?: { clientWidth: number; clientHeight: number } };
   const size = async () => {
     const m = await send<Metrics>('Page.getLayoutMetrics');
@@ -249,60 +249,66 @@ const MAX_SINGLE_SHOT_CSS = 8000;
 const TILE_CSS = 4000;
 const MAX_STITCH_PX = 32000;
 
+/** A full-page screenshot through an attached debugger session. Also used by forensic capture (F4). */
+export async function cdpFullPage(
+  send: Send,
+  dpr: number,
+  primaryRole = 'primary',
+): Promise<{ files: NewCaptureFile[]; method: string; meta: Record<string, unknown> }> {
+  const m = await send<{ cssContentSize?: { width: number; height: number }; contentSize: { width: number; height: number } }>(
+    'Page.getLayoutMetrics',
+  );
+  const size = m.cssContentSize ?? m.contentSize;
+  const width = Math.ceil(size.width);
+  const height = Math.ceil(size.height);
+  const tiles: { y: number; h: number; png: Uint8Array }[] = [];
+  const step = height <= MAX_SINGLE_SHOT_CSS ? height : TILE_CSS;
+  for (let y = 0; y < height; y += step) {
+    const h = Math.min(step, height - y);
+    const r = await send<{ data: string }>('Page.captureScreenshot', {
+      format: 'png',
+      captureBeyondViewport: true,
+      fromSurface: true,
+      clip: { x: 0, y, width, height: h, scale: 1 },
+    });
+    tiles.push({ y, h, png: base64ToBytes(r.data) });
+  }
+  const files: NewCaptureFile[] = [];
+  let method = 'cdp:Page.captureScreenshot(captureBeyondViewport)';
+  if (tiles.length === 1) {
+    files.push({ path: 'fullpage.png', data: tiles[0]!.png, mime: 'image/png', role: primaryRole });
+  } else {
+    method += '+tiles';
+    const stitched = await stitch(tiles.map((t) => ({ png: t.png, yCss: t.y })), dpr, height);
+    if (stitched) files.push({ path: 'fullpage.png', data: stitched, mime: 'image/png', role: primaryRole });
+    tiles.forEach((t, i) =>
+      files.push({
+        path: `tiles/tile-${String(i + 1).padStart(3, '0')}.png`,
+        data: t.png,
+        mime: 'image/png',
+        role: stitched ? 'tile' : i === 0 ? primaryRole : 'tile',
+      }),
+    );
+  }
+  return { files, method, meta: { pageCss: { width, height }, tiles: tiles.map((t) => ({ yCss: t.y, heightCss: t.h })) } };
+}
+
 async function fullPage(req: ScreenshotRequest) {
   const { tab, info, startedAtUtc } = await prepare(req.tabId);
   const meta = baseMeta(info, 'full', req.visitId);
 
-  const cdp = await withDebugger(req.tabId, async (send) => {
-    const m = await send<{ cssContentSize?: { width: number; height: number }; contentSize: { width: number; height: number } }>(
-      'Page.getLayoutMetrics',
-    );
-    const size = m.cssContentSize ?? m.contentSize;
-    const width = Math.ceil(size.width);
-    const height = Math.ceil(size.height);
-    const tiles: { y: number; h: number; png: Uint8Array }[] = [];
-    const step = height <= MAX_SINGLE_SHOT_CSS ? height : TILE_CSS;
-    for (let y = 0; y < height; y += step) {
-      const h = Math.min(step, height - y);
-      const r = await send<{ data: string }>('Page.captureScreenshot', {
-        format: 'png',
-        captureBeyondViewport: true,
-        fromSurface: true,
-        clip: { x: 0, y, width, height: h, scale: 1 },
-      });
-      tiles.push({ y, h, png: base64ToBytes(r.data) });
-    }
-    return { width, height, tiles };
-  });
+  const cdp = await withDebugger(req.tabId, (send) => cdpFullPage(send, info.devicePixelRatio));
 
   if ('value' in cdp) {
-    const { width, height, tiles } = cdp.value;
-    const files: NewCaptureFile[] = [];
-    let method = 'cdp:Page.captureScreenshot(captureBeyondViewport)';
-    if (tiles.length === 1) {
-      files.push({ path: 'fullpage.png', data: tiles[0]!.png, mime: 'image/png', role: 'primary' });
-    } else {
-      method += '+tiles';
-      const stitched = await stitch(tiles.map((t) => ({ png: t.png, yCss: t.y })), info.devicePixelRatio, height);
-      if (stitched) files.push({ path: 'fullpage.png', data: stitched, mime: 'image/png', role: 'primary' });
-      tiles.forEach((t, i) =>
-        files.push({
-          path: `tiles/tile-${String(i + 1).padStart(3, '0')}.png`,
-          data: t.png,
-          mime: 'image/png',
-          role: stitched ? 'tile' : i === 0 ? 'primary' : 'tile',
-        }),
-      );
-    }
     return storeCapture({
       caseId: req.caseId,
       type: 'screenshot',
-      method,
+      method: cdp.value.method,
       url: info.url,
       title: info.title,
       startedAtUtc,
-      files,
-      meta: { ...meta, pageCss: { width, height }, tiles: tiles.map((t) => ({ yCss: t.y, heightCss: t.h })) },
+      files: cdp.value.files,
+      meta: { ...meta, ...cdp.value.meta },
     });
   }
 

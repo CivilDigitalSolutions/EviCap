@@ -332,8 +332,8 @@ export function mediaTool(action: string, arg: Record<string, unknown>): unknown
           .box .lbl{position:absolute;left:0;top:0;font:600 11px system-ui,sans-serif;color:#fff;background:#2563eb;padding:1px 5px;border-radius:0 0 4px 0}
           .box.on .lbl{background:#16a34a}
           .bar{position:fixed;left:50%;top:12px;transform:translateX(-50%);display:flex;gap:8px;align-items:center;pointer-events:auto;
-               font:14px system-ui,sans-serif;background:#111827;color:#fff;padding:8px 10px;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.35)}
-          .bar button{font:inherit;border:0;border-radius:6px;padding:6px 10px;cursor:pointer;background:#374151;color:#fff}
+               font:14px system-ui,sans-serif;background:#111827;color:#fff;padding:8px 10px;border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,.35)}
+          .bar button{font:inherit;border:0;border-radius:4px;padding:6px 10px;cursor:pointer;background:#374151;color:#fff}
           .bar button.go{background:#16a34a}
           .bar button:disabled{opacity:.5;cursor:default}
         </style>

@@ -7,6 +7,8 @@ export interface Settings {
   defaultScreenshotMode: 'visible' | 'full' | 'region';
   /** Which image source to capture (F6): the largest srcset candidate, or the one displayed. */
   imageSource: 'largest' | 'displayed';
+  /** Forensic capture (F4): scroll the page first to load lazy content. */
+  forensicAutoScroll: boolean;
   /** Global denylist: never logged (F1). */
   denylist: string[];
   timestamping: { enabled: boolean; chainHeadIntervalMin: number };
@@ -50,6 +52,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoCaptureMaxMhtmlMb: 50,
   defaultScreenshotMode: 'visible',
   imageSource: 'largest',
+  forensicAutoScroll: false,
   denylist: DEFAULT_DENYLIST,
   timestamping: { enabled: false, chainHeadIntervalMin: 15 },
   mirrorReminderDismissed: false,

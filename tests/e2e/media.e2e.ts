@@ -220,7 +220,7 @@ describe('Media capture in a real browser', () => {
   const pageErrors: string[] = [];
 
   it('captures a right-clicked cross-origin image with its original bytes, EXIF and an in-context screenshot', async () => {
-    ({ id: caseId } = await rpc<{ id: string }>('createCase', { name: 'Media case', reference: 'M-1' }));
+    ({ id: caseId } = await rpc<{ id: string }>('createCase', { name: 'Media case', reference: 'M-1', autoCapture: false }));
     await rpc('setActiveCase', caseId);
     tab = await ctx.newPage();
     tab.on('pageerror', (e) => pageErrors.push(e.message));

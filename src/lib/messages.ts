@@ -19,6 +19,7 @@ export interface RpcMethods {
   setRecording(on: boolean): void;
   screenshot(mode: ScreenshotMode, tabId?: number): { captureId: string } | null;
   pickMedia(tabId?: number): MediaResult | null;
+  forensicCapture(reload: boolean, tabId?: number): { captureId: string };
   /** The right-click path (Capture image / Capture video) for one media address. */
   captureMediaUrl(srcUrl: string, mediaType: 'image' | 'video' | 'audio', tabId?: number): MediaResult;
   startTabRecording(tabId?: number): { captureId: string; drm: boolean };

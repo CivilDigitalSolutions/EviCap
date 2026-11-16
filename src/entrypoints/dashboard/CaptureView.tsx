@@ -11,6 +11,7 @@ import { Banner, captureLabel, Hash, LocalTime, Tags } from '@/ui/components';
 import { useLive, useOpfsUrl } from '@/ui/hooks';
 import { NoteList } from './CaseView';
 import { ExifCard, MediaPreview, RelatedCard, SourceCard } from './MediaCards';
+import { AutoCard, ForensicCards, SaveFile } from './PageCards';
 
 interface Integrity {
   files: Record<string, 'ok' | 'mismatch' | 'missing'>;
@@ -48,7 +49,12 @@ export function CaptureView({ caseId, captureId }: { caseId: string; captureId: 
   const [c] = useLive(() => getCapture(captureId), ['captures'], [captureId]);
   const [integrity, setIntegrity] = useState<Integrity | null>(null);
   const primary = c?.files.find((f) => f.role === 'primary');
-  const url = useOpfsUrl(c && primary ? capturePath(c.caseId, c.id, primary.path) : null);
+  // Page captures keep an archive as the primary file; preview their screenshot instead.
+  const shown =
+    primary && /^(image|video|audio)\//.test(primary.mime)
+      ? primary
+      : (c?.files.find((f) => f.role === 'screenshot' && f.mime.startsWith('image/')) ?? primary);
+  const url = useOpfsUrl(c && shown ? capturePath(c.caseId, c.id, shown.path) : null);
 
   useEffect(() => {
     if (c?.status === 'complete') void checkIntegrity(c).then(setIntegrity);
@@ -98,7 +104,7 @@ export function CaptureView({ caseId, captureId }: { caseId: string; captureId: 
         ))}
       <div className="two-col">
         <div className="card">
-          <MediaPreview c={c} primary={primary} url={url} />
+          <MediaPreview c={c} primary={shown} url={url} />
         </div>
         <div className="stack">
           <div className="card">
@@ -139,6 +145,8 @@ export function CaptureView({ caseId, captureId }: { caseId: string; captureId: 
               </dd>
             </dl>
           </div>
+          <ForensicCards c={c} />
+          <AutoCard c={c} />
           <RelatedCard c={c} />
           <SourceCard c={c} />
           <ExifCard c={c} primary={primary} />
@@ -162,6 +170,7 @@ export function CaptureView({ caseId, captureId }: { caseId: string; captureId: 
               <th>Size</th>
               <th>SHA-256</th>
               <th>Check</th>
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -174,6 +183,9 @@ export function CaptureView({ caseId, captureId }: { caseId: string; captureId: 
                   <Hash value={f.sha256} />
                 </td>
                 <td>{integrity ? (integrity.files[f.path] === 'ok' ? '✓' : `✗ ${integrity.files[f.path]}`) : '…'}</td>
+                <td>
+                  <SaveFile c={c} f={f} />
+                </td>
               </tr>
             ))}
           </tbody>

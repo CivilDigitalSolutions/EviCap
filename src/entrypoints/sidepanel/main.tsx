@@ -7,6 +7,7 @@ import { capturePath } from '@/lib/opfs';
 import type { CaptureRecord } from '@/lib/types';
 import { Banner, captureLabel, CaptureButtons, ErrorText, groupChildren, hostLabel, LocalTime, openDashboard } from '@/ui/components';
 import { useAction, useLive, useLiveState, useOpfsUrl, useSettings } from '@/ui/hooks';
+import { ForensicControls } from '@/ui/ForensicControls';
 import { MediaControls } from '@/ui/MediaControls';
 import { RecordControls } from '@/ui/RecordControls';
 import '@/ui/styles.css';
@@ -160,6 +161,7 @@ function SidePanel() {
       <RecordControls />
       {state?.activeCaseId && (
         <>
+          <ForensicControls />
           <CaptureButtons disabled={false} />
           <MediaControls />
           <LiveCase caseId={state.activeCaseId} />

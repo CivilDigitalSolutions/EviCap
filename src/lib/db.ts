@@ -13,7 +13,11 @@ import type {
 export interface EviCapDB extends DBSchema {
   cases: { key: string; value: CaseRecord; indexes: { byStatus: string } };
   visits: { key: string; value: VisitRecord; indexes: { byCase: [string, number] } };
-  captures: { key: string; value: CaptureRecord; indexes: { byCase: [string, string]; byStatus: string } };
+  captures: {
+    key: string;
+    value: CaptureRecord;
+    indexes: { byCase: [string, string]; byStatus: string; byCaseUrl: [string, string] };
+  };
   notes: { key: string; value: NoteRecord; indexes: { byCase: string; byTarget: [string, string] } };
   /** Append-only. There is no update or delete path in the data layer (§7.4). */
   audit: { key: [string, number]; value: AuditEvent };
@@ -24,13 +28,18 @@ export interface EviCapDB extends DBSchema {
 }
 
 export const DB_NAME = 'evicap';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBPDatabase<EviCapDB>> | null = null;
 
 export function getDb(): Promise<IDBPDatabase<EviCapDB>> {
   dbPromise ??= openDB<EviCapDB>(DB_NAME, DB_VERSION, {
-    upgrade(db) {
+    upgrade(db, oldVersion, _newVersion, tx) {
+      if (oldVersion < 2 && oldVersion >= 1) {
+        // v2: look up earlier captures of the same address (auto-capture deduplication, F3).
+        tx.objectStore('captures').createIndex('byCaseUrl', ['caseId', 'url']);
+        return;
+      }
       const cases = db.createObjectStore('cases', { keyPath: 'id' });
       cases.createIndex('byStatus', 'status');
       const visits = db.createObjectStore('visits', { keyPath: 'id' });
@@ -38,6 +47,7 @@ export function getDb(): Promise<IDBPDatabase<EviCapDB>> {
       const captures = db.createObjectStore('captures', { keyPath: 'id' });
       captures.createIndex('byCase', ['caseId', 'startedAtUtc']);
       captures.createIndex('byStatus', 'status');
+      captures.createIndex('byCaseUrl', ['caseId', 'url']);
       const notes = db.createObjectStore('notes', { keyPath: 'id' });
       notes.createIndex('byCase', 'caseId');
       notes.createIndex('byTarget', ['targetKind', 'targetId']);

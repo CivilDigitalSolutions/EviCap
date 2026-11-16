@@ -176,6 +176,10 @@ Rules:
 - **Deduplication:** if the extracted text and MHTML body hash match the previous capture of the same URL in the same case, link to the existing capture instead of storing a new one.
 - **Throttling:** at most one auto-capture per tab every N seconds (default 5). Skip pages over a size threshold (default 50 MB MHTML) and log the skip.
 - **No debugger:** auto-capture never attaches `chrome.debugger`, so the "being debugged" banner doesn't appear while browsing.
+- **Linking:** each visit records the id of its auto-capture (`autoCaptureId`), set in the same database transaction as the capture's audit event. A deduplicated visit points at the earlier capture and gets a `capture.reused` audit event; a skipped page gets `capture.skipped` with the reason and size.
+- **Comparison:** the MHTML hash used for deduplication is taken after removing what changes on every save (the header block, the MIME boundary and Blink's per-save part ids). The stored file is never altered; both hashes are kept in the capture metadata.
+- **Off screen:** `captureVisibleTab` can only see the active tab, so a page loaded in a background tab is saved without a screenshot and the capture is marked degraded with that reason.
+- A newer navigation in the same tab cancels a pending auto-capture, and nothing is captured if recording was paused or the active case changed in the meantime.
 
 ### F4 — Forensic page capture (P0)
 
@@ -199,6 +203,11 @@ A manual, one-click capture that records everything about the current page. It u
 **Failure handling:**
 - If DevTools is already attached to the tab, the debugger can't attach. Fall back to the F3 method, mark the capture as *"degraded: debugger unavailable"*, and record this in the manifest.
 - If a body can't be retrieved (evicted from cache, streaming), list it in the manifest as `bodyUnavailable` with the reason.
+- Without a reload, the page's resources are read from the browser's memory (`Page.getResourceContent`) and stored as WARC `resource` records, which have no HTTP headers. The page's own HTML is often not kept in memory (never for `no-store` pages); it is then downloaded again at capture time (D5), stored as a `response` record with `WARC-EviCap-Refetched: true`, and the capture is marked degraded. `dom.html` is always the page as displayed.
+
+**Files in a forensic capture:** `page.wacz` (primary), `fullpage.png` (or tiles), `page.mhtml`, `dom.html`, `source.html`, `network.json` (every request with headers, timing, server address and body status), `tls/chain.pem` (HTTPS only), `links.json`, `text.txt`.
+
+**WACZ writer:** EviCap writes WARC 1.1 and WACZ 1.1.1 itself (one gzip member per record, a CDXJ index with SURT keys, `pages.jsonl`, `datapackage.json` and `datapackage-digest.json`, stored uncompressed in the ZIP). The Webrecorder libraries are AGPL-3.0, so none are bundled. Decoded bodies are stored, so `Content-Encoding` is renamed to `X-EviCap-Original-Content-Encoding` and `Content-Length` is set to the stored length.
 
 ### F5 — Screenshots (P0)
 
@@ -257,7 +266,7 @@ Many sites stream video rather than serving a single file, so EviCap supports th
 
 - Full-text search over page text, notes, titles, URLs and EXIF, scoped to a case or all cases.
 - **Timeline view:** visits and captures on one time axis.
-- **WACZ replay:** embedded `replayweb.page`-style viewer, offline and served from local storage. Check its licence before bundling.
+- **WACZ replay:** `replayweb.page` is AGPL-3.0, so it is not bundled. Instead the dashboard has a built-in **offline snapshot** (built in M3): the captured DOM with scripts, frames and event handlers removed, every image, stylesheet and font replaced by a `data:` URL from the WACZ, links disabled, and a CSP of `default-src 'none'` plus `data:` for images, styles, fonts and media, shown in a sandboxed frame. Anything not in the archive is left blank, so viewing never contacts a website. For full interactive replay the user can save the WACZ and open it in any WACZ viewer.
 
 ### F10 — Export and reporting (P0)
 

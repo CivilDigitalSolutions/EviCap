@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import { CaptureButtons, openDashboard } from '@/ui/components';
 import { useLiveState } from '@/ui/hooks';
+import { ForensicControls } from '@/ui/ForensicControls';
 import { MediaControls } from '@/ui/MediaControls';
 import { RecordControls } from '@/ui/RecordControls';
 import '@/ui/styles.css';
@@ -18,8 +19,11 @@ function Popup() {
       <RecordControls />
       {state?.activeCaseId && (
         <section className="stack">
-          <h3 style={{ margin: 0 }}>Capture</h3>
+          <h3 style={{ margin: 0 }}>Page</h3>
+          <ForensicControls />
+          <h3 style={{ margin: 0 }}>Screenshot</h3>
           <CaptureButtons disabled={!state.activeCaseId} onBeforeInteractive={() => window.close()} />
+          <h3 style={{ margin: 0 }}>Images and video</h3>
           <MediaControls onBeforeInteractive={() => window.close()} />
         </section>
       )}

@@ -11,6 +11,7 @@ import { CaptureView } from './CaptureView';
 import { CaseList, NewCase } from './Cases';
 import { CaseView } from './CaseView';
 import { Onboarding } from './Onboarding';
+import { SnapshotView } from './PageCards';
 import { SettingsPage } from './Settings';
 
 function useRoute(): string[] {
@@ -54,12 +55,13 @@ function GlobalBanners() {
 function App() {
   const route = useRoute();
   const state = useLiveState();
-  const [section, a, b, c] = route;
+  const [section, a, b, c, d] = route;
 
   let page;
   if (section === 'onboarding') page = <Onboarding />;
   else if (section === 'new') page = <NewCase />;
   else if (section === 'settings') page = <SettingsPage />;
+  else if (section === 'case' && a && b === 'capture' && c && d === 'snapshot') page = <SnapshotView caseId={a} captureId={c} />;
   else if (section === 'case' && a && b === 'capture' && c) page = <CaptureView caseId={a} captureId={c} />;
   else if (section === 'case' && a) page = <CaseView caseId={a} />;
   else page = <CaseList />;

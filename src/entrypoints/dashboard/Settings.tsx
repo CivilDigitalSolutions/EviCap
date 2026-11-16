@@ -56,6 +56,36 @@ export function SettingsPage() {
           />
           <span>Turn on auto-capture for new cases</span>
         </label>
+        <div className="row" style={{ gap: 16, flexWrap: 'wrap' }}>
+          <label className="field" style={{ maxWidth: 260 }}>
+            <span>At most one auto-capture per tab every (seconds)</span>
+            <input
+              type="number"
+              min={1}
+              max={600}
+              value={settings.autoCaptureThrottleSec}
+              onChange={(e) => void save({ autoCaptureThrottleSec: Math.max(1, Number(e.target.value) || 5) })}
+            />
+          </label>
+          <label className="field" style={{ maxWidth: 260 }}>
+            <span>Skip auto-capture of pages larger than (MB)</span>
+            <input
+              type="number"
+              min={1}
+              max={1000}
+              value={settings.autoCaptureMaxMhtmlMb}
+              onChange={(e) => void save({ autoCaptureMaxMhtmlMb: Math.max(1, Number(e.target.value) || 50) })}
+            />
+          </label>
+        </div>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={settings.forensicAutoScroll}
+            onChange={(e) => void save({ forensicAutoScroll: e.target.checked })}
+          />
+          <span>Forensic capture: scroll through the page first, to load lazy images and comments (up to 30,000 px or 20 s)</span>
+        </label>
         <label className="field">
           <span>Never log these domains (one per line; subdomains included)</span>
           <textarea rows={8} value={denylist} onChange={(e) => setDenylist(e.target.value)} />

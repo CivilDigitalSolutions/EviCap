@@ -7,7 +7,7 @@ Forensic web evidence capture for investigators, by Civil Digital. A Chrome and 
 
 ## Status
 
-Built so far (spec milestones M0, M1 and M2):
+Built so far (spec milestones M0 to M3):
 
 - Cases: create, edit, close, reopen, archive, delete; one active case; Record/Pause
 - Visit log: every top-level navigation, including redirect chains and in-page (SPA) navigation, with time in focus; denylist, per-case domain scope, incognito opt-in
@@ -15,11 +15,13 @@ Built so far (spec milestones M0, M1 and M2):
 - Integrity: SHA-256 for every file, signed capture manifests (ECDSA P-256 install key), append-only hash-chained audit log per case, re-check on view, chain verification
 - Images: right-click capture or a multi-select picker; the original bytes (not a re-encode) where possible, EXIF shown read-only, every source the page offered recorded, and an in-context screenshot
 - Video: direct download of video files, streamed and hashed as it arrives, resumed if the connection drops, with the poster and caption tracks; tab recording (with sound) for streamed or protected video
+- Automatic capture: every logged page saved as MHTML with its text and a screenshot, linked to its visit; unchanged pages link to the earlier capture; large pages skipped and logged
+- Forensic capture: one click (or reload and capture) records the page's network traffic, TLS certificate, full-page screenshot, MHTML, rendered DOM, source and links, packaged as a WACZ web archive; an offline, script-free snapshot view in the dashboard
 - Disk mirror: optional copy of every case to a folder the user picks, re-hashed after writing
 - Notes (with version history) and tags
 - Popup, side panel, dashboard, onboarding, settings
 
-Next: automatic and forensic WACZ capture (M3), export and offline verifier (M4), billing and licence keys (M5).
+Next: export and offline verifier (M4), billing and licence keys (M5).
 
 ## Develop
 
@@ -49,13 +51,13 @@ Then open `chrome://extensions` (or `edge://extensions`), turn on Developer mode
 npm test
 ```
 
-Unit tests: canonical JSON (RFC 8785 vectors), SHA-256 (NIST vectors), audit chain building and tamper detection, signing, recording rules, EXIF reading, and a check that only the network module makes requests.
+Unit tests: canonical JSON (RFC 8785 vectors), SHA-256 (NIST vectors), audit chain building and tamper detection, signing, recording rules, EXIF reading, WARC/WACZ writing and reading, MHTML comparison, and a check that only the network module makes requests.
 
 ```bash
 npm run test:e2e
 ```
 
-Builds the extension, loads it into a real browser (Edge by default; set `EVICAP_BROWSER` to another Chromium-based browser's path) and checks recording, redirects, SPA navigation, screenshots (including the pixels of a full-page capture), signatures, the audit chain, the disk mirror and the dashboard; and media capture: a cross-origin image byte for byte with its EXIF, the picker, the largest srcset version, inline images, a video download that is cut off and resumed, and streamed video being sent to tab recording.
+Builds the extension, loads it into a real browser (Edge by default; set `EVICAP_BROWSER` to another Chromium-based browser's path) and checks recording, redirects, SPA navigation, screenshots (including the pixels of a full-page capture), signatures, the audit chain, the disk mirror and the dashboard; and media capture: a cross-origin image byte for byte with its EXIF, the picker, the largest srcset version, inline images, a video download that is cut off and resumed, and streamed video being sent to tab recording; automatic capture (files, visit links, deduplication, changed pages, the size limit) and forensic capture with and without a reload (WACZ contents and hashes, HTTP headers, server address, network log, the offline snapshot).
 
 Tab recording needs a real click on the toolbar button, so it is checked by hand: open a page with a video, click EviCap, press **Record this tab**, play for a few seconds, press **Stop**, and open the capture.
 

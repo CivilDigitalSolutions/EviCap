@@ -1,4 +1,5 @@
 import { appendEvent } from '@/lib/audit';
+import { cancelAutoCapture, scheduleAutoCapture, setAutoCaptureListener } from '@/lib/autocapture';
 import { markInterruptedCaptures } from '@/lib/captures';
 import {
   addNote,
@@ -22,6 +23,7 @@ import * as recorder from '@/lib/recorder';
 import { takeScreenshot, type ScreenshotMode } from '@/lib/screenshots';
 import { getSettings, getState, saveSettings, type LiveState, type Settings } from '@/lib/settings';
 import { dismissJob, markInterruptedJobs } from '@/lib/jobs';
+import { forensicCapture } from '@/lib/forensic';
 import { captureMediaAt, pickAndCapture, type MediaResult } from '@/lib/media';
 import type { TabRecordingEndedMessage } from '@/lib/messages';
 import {
@@ -84,10 +86,19 @@ export default defineBackground(() => {
     const [tab] = await chrome.tabs.query({ active: true, windowId });
     void recorder.onFocusChange(tab?.id ?? null);
   });
-  chrome.tabs.onRemoved.addListener((tabId) => void recorder.onTabRemoved(tabId));
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    cancelAutoCapture(tabId);
+    void recorder.onTabRemoved(tabId);
+  });
+  setAutoCaptureListener((rec, caseId) => {
+    if (!rec) return;
+    broadcast({ scope: 'captures', caseId });
+    broadcast({ scope: 'visits', caseId });
+  });
 
   let visitsTimer: ReturnType<typeof setTimeout> | null = null;
-  recorder.setVisitListener((v) => {
+  recorder.setVisitListener((v, isNew) => {
+    if (isNew) void scheduleAutoCapture(v.tabId, v.id, v.caseId);
     if (visitsTimer) return;
     visitsTimer = setTimeout(() => {
       visitsTimer = null;
@@ -186,6 +197,11 @@ export default defineBackground(() => {
         await setRecording(!s.recording);
         return;
       }
+      if (command === 'capture-forensic') {
+        await forensic(false, tab?.id);
+        flashBadge('+1');
+        return;
+      }
       if (command === 'open-media-picker') {
         report(await pickMedia(tab?.id));
         return;
@@ -247,6 +263,13 @@ export default defineBackground(() => {
     return r;
   }
 
+  async function forensic(reload: boolean, tabId?: number) {
+    const id = await targetTab(tabId);
+    const rec = await forensicCapture({ caseId: await activeCase(), tabId: id, visitId: await recorder.currentVisitId(id), options: { reload } });
+    broadcast({ scope: 'captures', caseId: rec.caseId });
+    return { captureId: rec.id };
+  }
+
   async function recordTab(tabId?: number) {
     const id = await targetTab(tabId);
     const r = await startTabRecording({
@@ -278,6 +301,7 @@ export default defineBackground(() => {
     video: 'evicap-capture-video',
     picker: 'evicap-media-picker',
     element: 'evicap-screenshot-element',
+    forensic: 'evicap-forensic',
     recordTab: 'evicap-record-tab',
   } as const;
 
@@ -291,6 +315,7 @@ export default defineBackground(() => {
       add(MENU.video, 'EviCap: Capture video', ['video', 'audio']);
       add(MENU.picker, 'EviCap: Pick images and videos…', ['page', 'image', 'video', 'link']);
       add(MENU.element, 'EviCap: Screenshot an element…', ['page', 'image', 'link']);
+      add(MENU.forensic, 'EviCap: Forensic capture of this page', ['page']);
       add(MENU.recordTab, 'EviCap: Record this tab', ['page', 'video']);
       void getTabRecording().then((s) => updateRecordTabMenu(!!s));
     });
@@ -317,6 +342,9 @@ export default defineBackground(() => {
         report(r);
       } else if (info.menuItemId === MENU.picker) {
         report(await pickMedia(tabId));
+      } else if (info.menuItemId === MENU.forensic) {
+        await forensic(false, tabId);
+        flashBadge('+1');
       } else if (info.menuItemId === MENU.element) {
         await screenshot('element', tabId);
       } else if (info.menuItemId === MENU.recordTab) {
@@ -355,6 +383,7 @@ export default defineBackground(() => {
     },
     screenshot: (mode, tabId) => screenshot(mode, tabId),
     pickMedia: (tabId) => pickMedia(tabId),
+    forensicCapture: (reload, tabId) => forensic(reload, tabId),
     async captureMediaUrl(srcUrl, mediaType, tabId) {
       const id = await targetTab(tabId);
       const r = await captureMediaAt(

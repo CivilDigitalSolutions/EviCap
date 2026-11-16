@@ -60,7 +60,7 @@ function serial<T>(fn: () => Promise<T>): Promise<T> {
   return next;
 }
 
-export type VisitListener = (v: VisitRecord) => void;
+export type VisitListener = (v: VisitRecord, isNew: boolean) => void;
 let onVisitRecorded: VisitListener = () => undefined;
 export function setVisitListener(fn: VisitListener) {
   onVisitRecorded = fn;
@@ -194,7 +194,7 @@ export function onCommitted(d: CommitDetails) {
     s.tabs[d.tabId] = { visitId: visit.id, caseId: c.id, url: d.url, focusedMs: 0 };
     if (tab.active && s.focus?.tabId !== d.tabId) s.focus = { tabId: d.tabId, since: Date.now() };
     await saveSession(s);
-    if (saved) onVisitRecorded(saved);
+    if (saved) onVisitRecorded(saved, true);
   });
 }
 
@@ -217,7 +217,7 @@ async function closeVisit(s: SessionState, tabId: number) {
   await appendEvent(
     tv.caseId,
     'visit.closed',
-    { visitId: v.id, leftAtUtc, focusedMs, title: v.title, referrer: v.referrer },
+    { visitId: v.id, leftAtUtc, focusedMs, title: v.title, referrer: v.referrer, autoCaptureId: v.autoCaptureId },
     {
       stores: ['visits'],
       alsoWrite(tx) {
@@ -251,7 +251,7 @@ export function onPageDetails(tabId: number, details: { title?: string; referrer
     if (details.referrer !== undefined && details.referrer !== v.referrer) next.referrer = details.referrer || null;
     if (next.title !== v.title || next.referrer !== v.referrer) {
       await db.put('visits', next);
-      onVisitRecorded(next);
+      onVisitRecorded(next, false);
     }
   });
 }

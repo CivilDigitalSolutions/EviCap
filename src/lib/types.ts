@@ -141,6 +141,8 @@ export type AuditEventType =
   | 'visit.closed'
   | 'capture.created'
   | 'capture.incomplete'
+  | 'capture.skipped'
+  | 'capture.reused'
   | 'artefact.derived'
   | 'artefact.deleted'
   | 'note.created'

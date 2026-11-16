@@ -61,7 +61,7 @@ export function selectRegion(): Promise<Rect | null> {
         .layer { position: fixed; inset: 0; z-index: 2147483647; cursor: crosshair; background: rgba(0,0,0,.25); }
         .box { position: fixed; border: 2px solid #e11d48; background: rgba(225,29,72,.08); box-shadow: 0 0 0 9999px rgba(0,0,0,.25); display: none; }
         .hint { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); background: #111; color: #fff;
-                font: 13px/1.4 system-ui, sans-serif; padding: 6px 12px; border-radius: 6px; pointer-events: none; }
+                font: 13px/1.4 system-ui, sans-serif; padding: 6px 12px; border-radius: 4px; pointer-events: none; }
       </style>
       <div class="layer"></div><div class="box"></div>
       <div class="hint">EviCap: drag to select a region. Esc to cancel.</div>`;
@@ -131,7 +131,7 @@ export function selectElement(): Promise<ElementPick | null> {
       <style>
         .hl { position: fixed; z-index: 2147483647; pointer-events: none; border: 2px solid #e11d48; background: rgba(225,29,72,.1); }
         .hint { position: fixed; z-index: 2147483647; top: 12px; left: 50%; transform: translateX(-50%); background: #111; color: #fff;
-                font: 13px/1.4 system-ui, sans-serif; padding: 6px 12px; border-radius: 6px; pointer-events: none; }
+                font: 13px/1.4 system-ui, sans-serif; padding: 6px 12px; border-radius: 4px; pointer-events: none; }
       </style>
       <div class="hl"></div><div class="hint">EviCap: click an element to capture it. Esc to cancel.</div>`;
     const hl = shadow.querySelector('.hl') as HTMLDivElement;
