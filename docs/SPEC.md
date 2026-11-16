@@ -2,10 +2,12 @@
 
 | | |
 |---|---|
-| **Status** | Draft v0.1 |
+| **Status** | Draft v0.2 |
 | **Product** | EviCap — forensic web evidence capture for investigators |
+| **Publisher** | Civil Digital |
 | **Platforms (v1)** | Google Chrome and Microsoft Edge (Manifest V3). Firefox desktop in v1.x. |
-| **Data model** | Local-only. No evidence, history or case data ever leaves the device. |
+| **Data model** | Local-only. No evidence, history or case data ever leaves the device. Cases can also be saved as files in a folder on the user's computer, to protect against data loss. |
+| **Outbound data** | Billing only, plus a hash sent to FreeTSA if the user turns on trusted timestamping (§10) |
 | **Billing** | Stripe, via ExtensionPay |
 
 ---
@@ -32,16 +34,16 @@ It is designed to do what Hunchly and Magnet Web Page Saver do, and to improve o
    - an image they select
    - a video they select, or a recording of the tab
 3. Hash every artefact with SHA-256 when it is created, record the hash in an append-only, hash-chained audit log, and never modify an original afterwards.
-4. Keep all data on the user's device. The extension operates no server and sends no telemetry.
-5. Export a case as a self-contained bundle with a human-readable report and an offline verifier.
-6. Sell a Pro tier through Stripe with as little backend work as possible.
+4. Keep all data on the user's device. The extension operates no server, sends no telemetry, and sends nothing off the device except billing traffic and, if the user turns on trusted timestamping, a hash (§7.5).
+5. Let the user protect against data loss by saving each case as files in a folder on their own computer (the optional disk mirror, §5.2).
+6. Export a case as a self-contained bundle with a human-readable report and an offline verifier.
+7. Sell a Pro tier through Stripe with as little backend work as possible.
 
 ### Non-goals (v1)
 - Any cloud storage, sync, team sharing or server-side processing.
 - Mobile browsers (see §15).
 - Capturing DRM-protected media (Netflix and similar). This is technically blocked, and the extension says so rather than failing silently.
-- Proving that a server really sent a given response (zkTLS/TLSNotary). This is research-grade today and tracked as future work.
-- Automatic "recipes" for specific social media sites. This is v1.x (see §16).
+- Proving that a server really sent a given response (zkTLS/TLSNotary). This is research-grade today and tracked as future work.- Automatic "recipes" for specific social media sites. This is v1.x (see §16).
 
 ## 3. Users and core scenarios
 
@@ -54,7 +56,7 @@ It is designed to do what Hunchly and Magnet Web Page Saver do, and to improve o
 
 ## 4. Product principles
 
-1. **Local-first, local-only.** All case data stays in browser storage on the device, or in a folder the user picks. The extension never contacts a vendor server for case data. See the network rules in §10.
+1. **Local-first, local-only.** All case data stays in browser storage on the device and, if the user chooses, in a folder on their computer. Nothing leaves the device except billing traffic and opt-in timestamp hashes. See the network rules in §10.
 2. **Originals never change.** Annotations, crops and redactions create new derived artefacts that point to their parent. The original bytes and hash are untouched.
 3. **Hash at the moment of capture.** Hashes are computed from the exact bytes written to storage, before anything else touches them.
 4. **Everything is logged.** Every action that creates, changes, exports or deletes data writes an audit event.
@@ -82,7 +84,14 @@ It is designed to do what Hunchly and Magnet Web Page Saver do, and to improve o
 | **IndexedDB** (`evicap` DB) | Metadata: cases, visits, captures, artefact records, notes, tags, selectors, audit events, search index, keys. |
 | **Origin Private File System (OPFS)** | Artefact bytes: screenshots, MHTML, WARC/WACZ, images, videos. Large files are written as streams. |
 | **`chrome.storage.local`** | Settings, active case id, cached licence entitlement. |
-| **Optional disk mirror** | The user chooses a folder through the File System Access API (`showDirectoryPicker`). EviCap mirrors each case there as plain files plus manifests. This protects against data loss on uninstall (see §11.4) and makes backups easy. Chrome 122+ keeps the folder permission between sessions. |
+| **Disk mirror** (optional, offered during onboarding) | The user chooses a folder on their computer through the File System Access API (`showDirectoryPicker`). EviCap saves each case there as plain files plus manifests, as it is captured. This is the main protection against data loss on uninstall or when browser data is cleared (see §11.4), and it makes backups easy. Chrome 122+ keeps the folder permission between sessions. |
+
+**Disk mirror rules:**
+- The mirror is optional. Onboarding (F13) offers it, and a dismissible reminder appears in the dashboard until a folder is set or the user turns the reminder off.
+- The browser doesn't tell EviCap the folder's full path, so it can't detect a cloud-synced folder (OneDrive, Dropbox, Google Drive, iCloud Drive). Onboarding warns the user not to pick one, because the sync service would upload the evidence.
+- Each artefact is written to the mirror after its hash, manifest and audit event are committed. The mirror copy is re-hashed and compared with the recorded hash.
+- If the folder permission is lost (for example, after the folder is moved or the browser is reset), EviCap shows a warning and queues the writes until the user picks the folder again. The queued files are then written and checked.
+- The mirror only ever goes to a local or user-chosen folder. EviCap never uploads it anywhere.
 
 - The extension requests the `unlimitedStorage` permission, calls `navigator.storage.persist()` and monitors free space with `navigator.storage.estimate()`.
 - It warns the user at 80% of available space and blocks new captures, with a clear message, at 95%.
@@ -91,8 +100,9 @@ It is designed to do what Hunchly and Magnet Web Page Saver do, and to improve o
 
 - **Language/build:** TypeScript, with [WXT](https://wxt.dev) as the extension framework (it handles MV3 and builds for Chrome, Edge and Firefox).
 - **UI:** Preact or React, with plain CSS.
-- **Hashing:** WebCrypto `crypto.subtle.digest('SHA-256')` for small inputs. `hash-wasm` for streaming SHA-256, MD5 and SHA-1 over large files (WebCrypto can't stream and has no MD5).
+- **Hashing:** WebCrypto `crypto.subtle.digest('SHA-256')` for small inputs. `hash-wasm` for streaming SHA-256 over large files (WebCrypto can't stream).
 - **Signatures:** WebCrypto ECDSA P-256 (§7.3).
+- **Timestamps:** an RFC 3161 request/response and CMS library (for example `pkijs`) for building requests and checking tokens (§7.5).
 - **WARC/WACZ:** `warcio.js` (Webrecorder) to write WARC records; WACZ packaging per the Webrecorder spec. Check every library's licence before adopting it (some Webrecorder projects are AGPL-3.0).
 - **ZIP:** `fflate` or `zip.js` (streaming).
 - **Search:** `MiniSearch` or `FlexSearch` (in-browser full-text index).
@@ -218,7 +228,7 @@ A manual, one-click capture that records everything about the current page. It u
    3. `fetch()` from the content script in the page's own context (same-origin or CORS-allowed)
    4. last resort: draw to canvas and export PNG, marked *"re-encoded: original bytes unavailable"*
 3. Keep EXIF and other embedded metadata exactly as delivered (no re-encoding). Parse and display EXIF in the viewer as read-only.
-4. Record: source URL, page URL, alt/title/aria text, rendered and natural dimensions, MIME type, response headers (where available), surrounding text snippet, DOM path, retrieval method and SHA-256 (plus MD5/SHA-1 if enabled).
+4. Record: source URL, page URL, alt/title/aria text, rendered and natural dimensions, MIME type, response headers (where available), surrounding text snippet, DOM path, retrieval method and SHA-256.
 5. Also take an **in-context screenshot** of the element on the page (child artefact), which shows where the image appeared.
 
 ### F7 — Capture selected videos (P0)
@@ -254,10 +264,11 @@ Many sites stream video rather than serving a single file, so EviCap supports th
 
 ```
 EviCap_<case-ref>_<UTC timestamp>.zip
-├── manifest.json            # every file, size, SHA-256 (+MD5/SHA-1 if enabled)
+├── manifest.json            # every file, size, SHA-256
 ├── manifest.sig             # signature over JCS(manifest.json)
 ├── public-key.jwk           # install public key
 ├── audit-log.jsonl          # full hash-chained audit log
+├── timestamps/              # FreeTSA tokens (.tsr) and certificates, if timestamping is on
 ├── visits.csv / visits.json
 ├── captures/<capture-id>/…  # WACZ, PNG, MHTML, images, videos, sidecar JSON
 ├── report.html              # human-readable report
@@ -265,7 +276,7 @@ EviCap_<case-ref>_<UTC timestamp>.zip
 └── verify.html              # offline verifier (no network)
 ```
 
-- **The report includes:** case details, investigator, environment, a summary of what EviCap does and does not prove, a visit log table, an exhibit index (each capture with thumbnail, URL, UTC time, method and SHA-256), notes, selector hits, and the audit chain head hash.
+- **The report includes:** case details, investigator, environment, a summary of what EviCap does and does not prove, a visit log table, an exhibit index (each capture with thumbnail, URL, UTC time, method and SHA-256), notes, selector hits, the audit chain head hash, and any trusted timestamps (capture time and TSA time side by side).
 - **Exhibit-only export:** selected captures only, with the same manifest, signature and verifier.
 - The **export file's own SHA-256** is computed after writing, shown to the user and recorded as an `export.created` audit event. That event is logged inside the case, but cannot be inside the ZIP it describes.
 - PDF generation: open the report in an extension tab and use CDP `Page.printToPDF`. If that is unavailable, the user prints manually.
@@ -276,34 +287,34 @@ EviCap_<case-ref>_<UTC timestamp>.zip
   1. recomputes the SHA-256 of every file and compares it with the manifest
   2. checks the manifest signature with the bundled public key
   3. walks the audit chain and checks every `prevHash`
-  4. shows a pass/fail report with details for each item
+  4. checks every timestamp token against the hash it covers and the bundled FreeTSA certificates
+  5. shows a pass/fail report with details for each item
 - The verifier is a single static HTML/JS file with no external dependencies and no network calls. It works when opened from disk in any modern browser.
 
 ### F12 — Settings (P0)
 
 - Auto-capture on/off and its throttles
 - Default screenshot mode and format
-- Extra hash algorithms (MD5, SHA-1), off by default
 - Domain denylist; per-case scope
-- Disk mirror folder
+- Disk mirror folder, with its status (last write, queued files)
 - Keyboard shortcuts (link to `chrome://extensions/shortcuts`)
 - Storage usage
 - Licence status
-- Trusted timestamping (opt-in, §7.5)
+- Trusted timestamping (opt-in, off by default, §7.5) and the chain-head interval
 
 ### F13 — Onboarding (P0)
 
 The first-run tab explains:
 - that data is stored only on this device, and uninstalling or clearing browser data deletes it unless it has been exported or mirrored
 - what the debugger banner means
-- how to set up a disk mirror
-- a privacy summary, with a link to `PRIVACY.md`
+- a privacy summary: nothing leaves the device except billing, and timestamp hashes if the user turns timestamping on, with a link to `PRIVACY.md`
+
+It then offers to set up a disk mirror folder (§5.2), with a warning not to pick a cloud-synced folder. This step is optional.
 
 ## 7. Integrity design
 
 ### 7.1 Hashing
-- **Primary:** SHA-256 for every stored artefact, computed over the exact bytes written to storage (streamed for large files).
-- **Optional:** MD5 and SHA-1, for compatibility with older forensic tools. Never the only hash.
+- **Algorithm:** SHA-256 only, for every stored artefact, computed over the exact bytes written to storage (streamed for large files). MD5 and SHA-1 are not offered.
 - **Form:** hashes are stored as lowercase hex, prefixed `sha256:`.
 - **Timing:** the hash is computed and recorded **before** the capture appears in the UI.
 - **Re-hash on view (P1):** opening an artefact re-hashes it in the background and flags any mismatch.
@@ -321,7 +332,7 @@ Each capture has a manifest:
   "url": "…", "title": "…",
   "startedAtUtc": "…", "completedAtUtc": "…",
   "environment": { "extension": "1.0.0", "browser": "Chrome 142…", "os": "…", "tz": "Europe/London" },
-  "files": [ { "path": "page.wacz", "bytes": 123456, "sha256": "…", "md5": null } ],
+  "files": [ { "path": "page.wacz", "bytes": 123456, "sha256": "…" } ],
   "parent": null,                       // for derived artefacts
   "auditEventHash": "sha256:…"
 }
@@ -351,18 +362,28 @@ The **capture hash** is the SHA-256 of the RFC 8785 canonical JSON of this manif
   - `visit.recorded`, `capture.created`, `artefact.derived`
   - `note.created`, `note.edited`, `tag.added`, `tag.removed`, `selector.hit`
   - `export.created`, `verify.run`, `settings.changed`
+  - `timestamp.obtained`, `timestamp.failed`
   - `artefact.deleted`, `licence.changed`
 - **Deletion** asks for a reason. Artefact bytes are removed, but a tombstone event keeps the original hash and the reason, so the gap is visible and explained.
 - **Chain head:** the current hash is shown in the case header and the report.
 
 ### 7.5 Trusted timestamping (P1, opt-in, off by default)
-- When enabled, EviCap sends **only the SHA-256 hash** of a capture manifest (or of the audit chain head, at an interval the user sets) to an RFC 3161 Time Stamping Authority the user chooses, for example FreeTSA or a commercial or eIDAS-qualified TSA. It stores the returned token.
-- No URLs, content or identity are sent. The privacy policy and onboarding describe this.
-- This is the **only** optional outbound call involving case-derived data, and the data is a hash only. It stays off unless the user enables it.
+EviCap's own times come from the computer's clock, which the user can change. A trusted timestamp from an outside authority proves a hash existed at a given time, independently of that clock.
+
+- **Service:** FreeTSA (`https://freetsa.org/tsr`), a free RFC 3161 Time Stamping Authority. It is the only TSA in v1, so the network allow-list stays fixed.
+- **What is sent:** an RFC 3161 request containing only a SHA-256 hash and a random nonce. No URLs, content, case details or identity. As with any connection, FreeTSA sees the user's IP address and the time of each request. Onboarding and the privacy policy say so.
+- **What is stamped:**
+  - each manual capture's capture hash (§7.2), when the capture completes
+  - the audit chain head, every 15 minutes while recording (configurable). This covers visits and auto-captures without a request per page.
+  - each export manifest
+- **Token:** the returned token (`.tsr`) is stored with the capture or case, and written to the disk mirror and to exports. A `timestamp.obtained` audit event records the stamped hash, the token's hash and the TSA's time. The token can't sit inside the manifest it stamps, so it is linked by the capture hash.
+- **Verification:** FreeTSA's TSA and CA certificates are bundled in the extension and in every export, so tokens are checked offline. EviCap never downloads them at runtime.
+- **Offline or failure:** captures never wait for a timestamp. Failed requests are queued and retried with backoff, and a `timestamp.failed` event is logged. The report shows the capture time and the TSA time side by side, so a late token is visible.
+- **Limits (stated in the report):** FreeTSA is a free service with no service-level guarantee, and it is not an eIDAS-qualified TSA. A token proves the hash existed by the TSA's time; it doesn't prove who made it. Keep request volume modest, and check FreeTSA's terms of use before launch.
 
 ### 7.6 Clock
 - Timestamps come from the system clock in UTC, with the timezone offset recorded.
-- The report states that times come from the computer's clock unless an RFC 3161 token is present.
+- The report states that times come from the computer's clock, except where a FreeTSA token is present.
 - Large clock jumps (detected by comparing `Date.now()` with `performance.timeOrigin + performance.now()` across events) are logged as `clock.anomaly`.
 
 ## 8. Permissions
@@ -381,9 +402,10 @@ The **capture hash** is the SHA-256 of the RFC 8785 canonical JSON of this manif
 | `tabCapture`, `offscreen` | Tab video recording (F7-C), hashing, ZIP building | — |
 | `sidePanel` | Live log UI | — |
 | `downloads` | Saving exports | — |
-| `alarms` | Licence re-check, periodic chain-head timestamp (opt-in) | — |
+| `alarms` | Licence re-check (only once the user has used billing), periodic chain-head timestamp (opt-in) | — |
 | Host permissions `<all_urls>` | Recording and capture work on any site the investigator visits; cross-origin media fetch | Requested at install, since recording all sites is the core function. Explain this in the listing. |
 | `https://extensionpay.com/*` (host + content script) | Billing (§9) | Only billing traffic |
+| `https://freetsa.org/*` | Trusted timestamping (§7.5), opt-in | Already covered by `<all_urls>`; listed for transparency. Sends a hash only. |
 
 Chrome version: **Chrome 116+** (promise-based `pageCapture`, mature offscreen and sidePanel APIs). Target the current stable release.
 
@@ -401,7 +423,9 @@ Check ExtensionPay's current fees and terms before launch. If a merchant of reco
 ### 9.2 Integration
 - `ExtPay('<extension-id>')` with `startBackground()` in the service worker. Re-create the `extpay` instance inside callbacks, because MV3 workers restart.
 - Manifest: content script on `https://extensionpay.com/*` at `document_start` (needed for `onPaid` / `onTrialStarted`), plus a CSP `connect-src` that allows `https://extensionpay.com`.
-- **Licence check:** on startup and every 24 h (`alarms`). Cache `{paid, plan, subscriptionStatus, trialStartedAt, checkedAt}` in `chrome.storage.local`.
+- **No billing connection until the user asks for one.** EviCap doesn't contact ExtensionPay until the user starts a trial, buys, or signs in. A free user who never does any of these never contacts ExtensionPay.
+  - Check that creating the `ExtPay` instance and calling `startBackground()` make no network request on their own. If they do, create the instance only after the user's first billing action.
+- **Licence check:** once billing has been used, on startup and every 24 h (`alarms`). Cache `{paid, plan, subscriptionStatus, trialStartedAt, checkedAt}` in `chrome.storage.local`.
 - **Offline grace:** if the check fails because of the network, keep the cached entitlement for **14 days**. After that, drop to Free features. Existing data is never locked (principle 5).
 - **Upgrade:** `extpay.openPaymentPage()` / `openPaymentPage('pro-yearly')`. The `onPaid` listener unlocks immediately.
 - **Manage or cancel:** `openPaymentPage()` also serves as the management page.
@@ -421,38 +445,45 @@ Check ExtensionPay's current fees and terms before launch. If a merchant of reco
 | Hashing, audit log, signing | ✓ | ✓ |
 | Export, reports, verifier | ✓ (always) | ✓ + branded reports, exhibit-only export |
 | Selectors, search | — | ✓ |
-| Trusted timestamping | — | ✓ |
+| Trusted timestamping (FreeTSA) | — | ✓ |
+| Disk mirror | ✓ (always) | ✓ |
 
 ### 9.4 Enforcement caveat
 Because there is no server, paywall checks run in the client and a determined user could bypass them. That is accepted for v1. Paid value that can be enforced server-side, such as cloud signing or sync, would need a backend, which is deliberately out of scope for the local-only v1.
 
 ### 9.5 What billing transmits
-Only ExtensionPay/Stripe traffic: the user's email address, payment details (entered on Stripe/ExtensionPay pages, never seen by the extension), plan and subscription status, and an ExtensionPay user identifier. **No case data, visit history or captures.** This is reflected in `PRIVACY.md`.
+Only ExtensionPay/Stripe traffic: the user's email address, payment details (entered on Stripe/ExtensionPay pages, never seen by the extension), plan and subscription status, and an ExtensionPay user identifier. **No case data, visit history or captures.** Free users who never start a trial, buy or sign in send nothing to ExtensionPay. This is reflected in `PRIVACY.md`.
 
-## 10. Network rules (local-only guarantee)
+## 10. Network rules (no outbound data except billing and opt-in timestamps)
+
+**Rule:** no data leaves the device except billing traffic and, if the user turns on trusted timestamping, a hash sent to FreeTSA.
 
 The extension may make network requests only of these kinds:
 
-| # | Destination | Purpose | Contains user data? |
+| # | Destination | Purpose | What is sent |
 |---|---|---|---|
-| 1 | The websites the user is viewing | Fetch the original bytes of pages, images and video the user chose to capture (the same requests a browser makes to view them) | It goes to the site being captured. Nothing is uploaded to it beyond normal browser requests. |
-| 2 | `extensionpay.com` (and Stripe, through ExtensionPay's pages) | Billing and licence status | Email and subscription status only |
-| 3 | A user-configured RFC 3161 TSA (**opt-in, off by default**) | Trusted timestamp | A SHA-256 hash only |
+| 1 | `extensionpay.com` (and Stripe, through ExtensionPay's pages) | Billing and licence status | Email and subscription status only, and only after the user starts a trial, buys or signs in |
+| 2 | `freetsa.org` (**opt-in, off by default**) | Trusted timestamp (§7.5) | A SHA-256 hash and a random nonce only |
+| 3 | The websites the user is viewing | Re-fetch the original bytes of pages, images and video the user chose to capture (accepted, D5) | Only the ordinary request a browser sends to view the item. No case data, logs or captures are sent. |
 
 **Hard rules:**
-- No analytics, telemetry, crash reporting, remote config, remote code, ad SDKs or font/CDN loads. All code and assets are bundled (also required by MV3).
-- The extension-page CSP sets `connect-src 'self' https://extensionpay.com` (plus the TSA host, when enabled). Fetches to captured sites run in the service worker or offscreen document, which have host permissions.
+- No analytics, telemetry, crash reporting, remote config, remote code, ad SDKs, font/CDN loads, update pings or uninstall URLs. All code and assets are bundled (also required by MV3).
+- No other third-party services, including backup or sync.
+- The extension-page CSP sets `connect-src 'self' https://extensionpay.com https://freetsa.org`. Fetches to captured sites run in the service worker or offscreen document, which have host permissions.
 - A CI test lints for any `fetch`/`XMLHttpRequest`/`WebSocket`/`sendBeacon` call outside an allow-listed network module.
 - An E2E test runs the extension through a recording proxy and fails on any request to a host not on the list above.
 
 ## 11. Security and data protection
 
 1. **At rest:** data sits in the browser profile on disk. Anyone with access to the OS user account could read it.
+   - The disk mirror is plain files and is not separately encrypted (D2). Integrity doesn't depend on encryption: any change to a mirrored file is caught by its hash and signature. For confidentiality, rely on full-disk encryption (BitLocker, FileVault) and the OS account password, which protect the browser profile in the same way.
+   - If per-case encryption (below) is added, an encrypted case's mirror copy stays encrypted, so the mirror never weakens it.
    - P1: optional per-case passphrase encryption (AES-GCM-256, key derived with PBKDF2-SHA-256 at ≥600k iterations, or Argon2id via WASM). Hashes are computed over the plaintext and recorded before encryption.
 2. **Isolation:** captured page content is never rendered in an extension-privileged context. MHTML and WACZ replay run in a sandboxed iframe (`sandbox` manifest key) with no extension API access.
 3. **Content scripts:** treat the page DOM as untrusted. Never `eval` and never use `innerHTML` with page data in extension UI.
 4. **Uninstall / data loss:** uninstalling the extension or clearing site data **deletes all local data**.
-   - Mitigations: onboarding warning, a persistent banner until a disk mirror or export exists, "last exported" indicator per case, export reminder when a case is closed.
+   - Main protection: the disk mirror (§5.2), which keeps a copy of every case as files in a folder on the user's computer. These files survive uninstalling the extension and clearing browser data.
+   - Other mitigations: onboarding warning, a dismissible reminder until a disk mirror is set, a "last mirrored / last exported" indicator per case, and an export reminder when a case is closed.
    - Optional `chrome.runtime.setUninstallURL` is **not** used, because it would transmit data.
 5. **Supply chain:** lockfile, pinned dependencies, `npm audit` in CI, minimal dependencies, reproducible builds, and store-signed releases.
 
@@ -483,6 +514,7 @@ The extension may make network requests only of these kinds:
   - JCS canonicalisation vectors
   - audit chain building and tamper detection
   - manifest signing and verification
+  - timestamp token checks against the bundled FreeTSA certificates (valid, wrong hash, tampered token)
 - **E2E (Playwright, unpacked extension):**
   - visit log across redirects and SPA navigations
   - every screenshot mode
@@ -502,19 +534,27 @@ Chrome on Android has no extension support, and Safari on iOS lacks `webRequest`
 
 | Milestone | Scope |
 |---|---|
-| **M0 — Skeleton** | WXT project, MV3 manifest, storage layer, audit log, hashing/signing core, settings |
+| **M0 — Skeleton** | WXT project, MV3 manifest, storage layer, disk mirror, audit log, hashing/signing core, settings |
 | **M1 — Logging & screenshots** | F1, F2, F5, notes/tags, side panel, basic dashboard |
 | **M2 — Media** | F6, F7-A, F7-C, media picker |
 | **M3 — Forensic & auto capture** | F3, F4 (WACZ), replay viewer |
-| **M4 — Export & verify** | F10, F11, report HTML/PDF, disk mirror |
+| **M4 — Export & verify** | F10, F11, report HTML/PDF |
 | **M5 — Billing & launch** | ExtensionPay, plan gating, onboarding, store listing, privacy policy hosting |
-| **v1.x** | F7-B (HLS/DASH), selectors, search, annotations, RFC 3161 timestamps, case encryption, Firefox build, social-media capture recipes (auto-expand comments, timeline scroll) |
-| **v2** | Optional end-to-end-encrypted team sync, server-side signing, mobile app, zkTLS research |
+| **v1.x** | F7-B (HLS/DASH), selectors, search, annotations, trusted timestamps (FreeTSA), case encryption, Firefox build, social-media capture recipes (auto-expand comments, timeline scroll) |
+| **v2** | Mobile app, zkTLS research. Anything else that sends data off the device (team sync, server-side signing) needs a change to the network rules (§10) first. |
 
-## 17. Open questions
-1. **Product name and legal entity** for the store listing and privacy policy (placeholders are used in `PRIVACY.md`).
-2. **Pricing:** final Free/Pro split and price points.
-3. **Default auto-capture:** on (Hunchly-like) or off (smaller storage footprint)?
-4. **Extra hashes:** is MD5/SHA-1 needed by your target customers' forensic tools (for example, AXIOM ingestion)?
-5. **Timestamping:** is the opt-in RFC 3161 feature acceptable given the "no transmission" goal? It sends hashes only. Alternatively, leave it out of v1 entirely.
-6. **Merchant of record:** will you sell internationally from day one? If so, consider Paddle or Lemon Squeezy instead of ExtensionPay/Stripe for VAT handling.
+## 17. Decisions
+| # | Decision |
+|---|---|
+| D1 | **Publisher:** Civil Digital. Contact: info@civildigital.co.uk. No postal address is published. The product name is EviCap. |
+| D2 | **Data loss:** saving cases as files in a folder on the user's computer is acceptable. The disk mirror is optional, offered during onboarding, and not separately encrypted (§5.2, §11.1). |
+| D3 | **Outbound data:** none, except billing and opt-in trusted timestamping through FreeTSA, which sends a hash only (§7.5, §10). |
+| D4 | **Billing connection:** none until the user starts a trial, buys or signs in (§9.2). |
+| D5 | **Re-fetching originals** from the websites being captured is acceptable (§10). |
+| D6 | **VAT:** Civil Digital is not VAT-registered. ExtensionPay/Stripe stays; no merchant of record is needed for now. |
+| D7 | **Auto-capture** is on by default (F3). |
+| D8 | **Hashing:** SHA-256 only. No MD5 or SHA-1 (§7.1). |
+
+## 18. Open questions
+1. **Pricing:** final Free/Pro split and price points.
+2. **Trusted timestamping plan:** Pro-only (as in §9.3) or free for everyone? It is off by default either way.
