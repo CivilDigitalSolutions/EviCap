@@ -1,7 +1,7 @@
 # EviCap Privacy Policy
 
-**Effective date:** [DATE]
-**Last updated:** [DATE]
+**Effective date:** 16 November 2026
+**Last updated:** 16 November 2026
 
 This policy explains how the EviCap browser extension ("EviCap", "the extension") handles information. EviCap is provided by **Civil Digital** ("we", "us", "our"). You can contact us at **info@civildigital.co.uk**.
 
@@ -87,8 +87,9 @@ EviCap's use of information received from browser APIs complies with the [Chrome
 | Debugger | To make full forensic captures (complete page archives, full-page screenshots, network and certificate details). It is used only while a capture you start is running, and Chrome shows a notice bar while it is active. |
 | Tab capture, offscreen documents | To record video and audio from a tab when you ask it to |
 | Page capture, scripting, active tab, context menus, side panel | To save pages, show capture tools and menus, and display the live log |
+
+Exports you ask for are saved through your browser's normal download, so EviCap needs no separate download permission.
 | Storage, unlimited storage | To store your evidence locally without the normal size limits |
-| Downloads | To save exports you request |
 | Alarms | To re-check your plan on the device periodically (for example, to notice that a trial or licence has ended), and to renew a subscription licence key through our licence service about once a day, only once you have entered one, and to run scheduled timestamping if you turn it on |
 
 ## 6. Retention and deletion

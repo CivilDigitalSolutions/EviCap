@@ -24,7 +24,7 @@ Built so far (spec milestones M0 to M5):
 - Popup, side panel, dashboard, onboarding, settings
 - Plans: Free limits and Pro features enforced on the device, a 14-day trial that sends nothing, card subscriptions through Stripe Managed Payments with Civil Digital's licence service (`service/`), and signed offline licence keys for invoiced organisations
 
-Still to do before launch: a first live purchase test (SPEC §18), the store listing and hosting the privacy policy.
+Still to do before launch: a first live purchase test (SPEC §18), store screenshots, and submitting to the Chrome Web Store and Edge Add-ons. Everything the store dashboard asks for (listing text, permission justifications, privacy answers) is in `CHROMEWEBSTORE.md`; `npm run zip` makes the upload.
 
 ## Licence keys
 
@@ -35,6 +35,12 @@ node tools/issue-licence.ts issue --org "Acme Ltd" --email jo@acme.example --mon
 ```
 
 The key is printed and logged in `tools/keys/issued-licences.csv`. The signing key is `tools/keys/licence-signing-key.private.jwk`. Git ignores `tools/keys/`; keep an offline backup, because losing it means no more keys can be issued without an extension update, and leaking it lets anyone make keys.
+
+## Build with AI agents
+
+Chrome's agent skills are installed in `.agents/skills` (`chrome-extensions` and `modern-web-guidance`, from `GoogleChrome/modern-web-guidance`, pinned in `skills-lock.json`). Claude Code reads them through `.claude/skills`, which git ignores; recreate the links with `npx skills add GoogleChrome/modern-web-guidance --skill chrome-extensions -y` and the same for `modern-web-guidance`.
+
+`.mcp.json` adds Chrome DevTools for agents (`chrome-devtools-mcp` with its extension tools), which lets an agent load, reload and inspect EviCap in your own Chrome. To use it, open `chrome://inspect/#remote-debugging` in Chrome, turn on *Allow remote debugging for this browser instance* (needed each time Chrome starts), and approve the server when Claude Code asks.
 
 ## Develop
 

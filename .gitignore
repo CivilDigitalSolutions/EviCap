@@ -7,3 +7,6 @@ stats.html
 # Licence-signing private keys must never be committed
 tools/keys/
 *.private.jwk
+
+# Claude Code links to the project skills in .agents/skills (recreate with: npx skills add GoogleChrome/modern-web-guidance)
+.claude/skills/

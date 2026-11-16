@@ -561,7 +561,8 @@ The extension may make network requests only of these kinds:
   - State that evidence data is processed and stored locally and not transmitted.
   - Certify the Limited Use requirements.
   - Check the current definitions in the CWS User Data Policy at submission time.
-- Privacy policy URL: host `PRIVACY.md` publicly (GitHub Pages or the product site).
+- Privacy policy URL: `PRIVACY.md` in the public repository (https://github.com/CivilDigitalSolutions/EviCap/blob/main/PRIVACY.md), until there is a page on the product site.
+- **As built:** `CHROMEWEBSTORE.md` holds the listing text, a justification for every permission, the privacy-practices answers, the asset list and the version history, following the template in Chrome's `chrome-extensions` agent skill. `npm run zip` makes the upload.
 - Permission justifications for `debugger`, `<all_urls>`, `tabCapture` and `webRequest` (copy based on §8).
 - Expect manual review because of `debugger`. Use `activeTab` and optional permissions where possible.
 
@@ -606,7 +607,7 @@ Chrome on Android has no extension support, and Safari on iOS lacks `webRequest`
 | **M2 — Media** | F6, F7-A, F7-C, media picker |
 | **M3 — Forensic & auto capture** | F3, F4 (WACZ), replay viewer |
 | **M4 — Export & verify** | F10, F11, report HTML/PDF |
-| **M5 — Billing & launch** | Done: Stripe Managed Payments products and Payment Links, the licence service (deployed), subscription and invoice licence keys, local trial, plan gating, onboarding. Branded reports. Still to do: a first live purchase test (§18 item 0), store listing submission, privacy policy hosting |
+| **M5 — Billing & launch** | Done: Stripe Managed Payments products and Payment Links, the licence service (deployed), subscription and invoice licence keys, local trial, plan gating, onboarding. Branded reports. Store listing text and permission justifications (`CHROMEWEBSTORE.md`). Still to do: a first live purchase test (§18 item 0), store screenshots, store submission |
 | **v1.x** | F7-B (HLS/DASH), selectors, search, annotations, trusted timestamps (FreeTSA), case encryption, Firefox build, social-media capture recipes (auto-expand comments, timeline scroll) |
 | **v2** | Mobile app, zkTLS research. Anything else that sends data off the device (team sync, server-side signing) needs a change to the network rules (§10) first. |
 
