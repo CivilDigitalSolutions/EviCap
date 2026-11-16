@@ -431,11 +431,23 @@ Check ExtensionPay's current fees and terms before launch. If a merchant of reco
 - **Manage or cancel:** `openPaymentPage()` also serves as the management page.
 - **Trial:** `openTrialPage('14-day')`; trial status is derived from `trialStartedAt`.
 
-### 9.3 Plans (proposed; adjust as needed)
+### 9.3 Plans and pricing
+
+**Principle:** Free handles occasional cases well; Pro is for people who investigate every day. Everything that makes evidence trustworthy (hashing, audit log, signing, verifier, export, disk mirror) is free on every plan.
+
+**Pro price (per user):**
+
+| Billing | Price | ExtensionPay plan id |
+|---|---|---|
+| Monthly | £4 per month | `pro-monthly` |
+| Annual | £40 per year (two months free) | `pro-yearly` |
+
+- A 14-day Pro trial is available (§9.2).
+- For comparison (November 2026): Hunchly Classic is $169 / €149 per year (about £128) with a 30-day trial and no free plan. Forensic OSINT Essential is $197 per year.
 
 | Feature | Free | Pro |
 |---|---|---|
-| Cases | 1 active case | Unlimited |
+| Open cases | 2 (closed cases don't count, and stay fully viewable and exportable) | Unlimited |
 | Visit log | ✓ | ✓ |
 | Auto-capture (F3) | ✓ (limit: 100 per case) | Unlimited |
 | Screenshots, all modes | ✓ | ✓ |
@@ -447,6 +459,7 @@ Check ExtensionPay's current fees and terms before launch. If a merchant of reco
 | Selectors, search | — | ✓ |
 | Trusted timestamping (FreeTSA) | — | ✓ |
 | Disk mirror | ✓ (always) | ✓ |
+| v1.x: annotations, case encryption, social-media capture recipes | — | ✓ |
 
 ### 9.4 Enforcement caveat
 Because there is no server, paywall checks run in the client and a determined user could bypass them. That is accepted for v1. Paid value that can be enforced server-side, such as cloud signing or sync, would need a backend, which is deliberately out of scope for the local-only v1.
@@ -554,7 +567,9 @@ Chrome on Android has no extension support, and Safari on iOS lacks `webRequest`
 | D6 | **VAT:** Civil Digital is not VAT-registered. ExtensionPay/Stripe stays; no merchant of record is needed for now. |
 | D7 | **Auto-capture** is on by default (F3). |
 | D8 | **Hashing:** SHA-256 only. No MD5 or SHA-1 (§7.1). |
+| D9 | **Trusted timestamping** is a Pro feature, off by default (§9.3). |
+| D10 | **Pricing:** Pro is £4 per user per month or £40 per year. Free/Pro split as in §9.3. |
 
 ## 18. Open questions
-1. **Pricing:** final Free/Pro split and price points.
-2. **Trusted timestamping plan:** Pro-only (as in §9.3) or free for everyone? It is off by default either way.
+1. **Agency purchasing:** police and legal teams often pay by purchase order and invoice, not card. Check whether ExtensionPay lets a user be marked as paid manually (for example after a Stripe invoice), and decide on volume discounts.
+2. **Fees:** check ExtensionPay's current fees. At £4 a month, fixed per-payment card fees take a larger share than on the annual plan.
