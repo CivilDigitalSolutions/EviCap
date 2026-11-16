@@ -10,6 +10,7 @@ import type { CaseRecord } from '@/lib/types';
 import { formatBytes } from '@/lib/util';
 import { Banner, captureLabel, ErrorText, Hash, LocalTime } from '@/ui/components';
 import { useAction, useLive } from '@/ui/hooks';
+import { ProTag, usePlan } from './Plan';
 
 /** Export (F10) and case verification (F11) for one case. */
 export function ExportPanel({ c }: { c: CaseRecord }) {
@@ -34,6 +35,8 @@ export function ExportPanel({ c }: { c: CaseRecord }) {
 function ExportCard({ c }: { c: CaseRecord }) {
   const [captures] = useLive(() => listCaptures(c.id), ['captures'], [c.id]);
   const [mode, setMode] = useState<'case' | 'pick'>('case');
+  const plan = usePlan();
+  const pro = plan?.entitlement.plan === 'pro';
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [progress, setProgress] = useState<ExportProgress | null>(null);
   const [result, setResult] = useState<ExportResult | null>(null);
@@ -67,7 +70,8 @@ function ExportCard({ c }: { c: CaseRecord }) {
           </span>
         </label>
         <label className="row" style={{ gap: 6 }}>
-          <input type="radio" checked={mode === 'pick'} onChange={() => setMode('pick')} /> Selected exhibits
+          <input type="radio" checked={mode === 'pick'} disabled={!pro} onChange={() => setMode('pick')} /> Selected exhibits
+          {plan && !pro && <ProTag />}
         </label>
       </div>
       {mode === 'pick' && (

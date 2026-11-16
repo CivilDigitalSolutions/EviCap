@@ -8,6 +8,7 @@ import { formatBytes } from '@/lib/util';
 import { ErrorText, Hash } from '@/ui/components';
 import { useAction, useLive, useSettings } from '@/ui/hooks';
 import { MirrorPanel } from './Mirror';
+import { PlanCard } from './Plan';
 
 export function SettingsPage() {
   const settings = useSettings();
@@ -184,16 +185,13 @@ export function SettingsPage() {
         )}
       </div>
 
-      <div className="card stack">
-        <h2>Licence</h2>
-        <p className="small muted">Free plan. Pro upgrades and licence keys arrive with billing in a later build.</p>
-      </div>
+      <PlanCard />
 
       <div className="card stack">
         <h2>Privacy</h2>
         <p className="small">
-          Everything EviCap records stays on this computer. Nothing leaves it except billing, and timestamp hashes if you turn
-          timestamping on.
+          Everything EviCap records stays on this computer. Licence keys and the trial are checked on this computer too, so EviCap
+          sends nothing at all unless you turn on a feature that says it does.
         </p>
       </div>
     </section>

@@ -3,3 +3,6 @@ declare module 'virtual:evicap-verifier' {
   const html: string;
   export default html;
 }
+
+/** True only in `wxt build --mode e2e` (wxt.config.ts). */
+declare const __EVICAP_E2E__: boolean;

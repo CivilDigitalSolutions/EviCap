@@ -12,6 +12,7 @@ import { CaseList, NewCase } from './Cases';
 import { CaseView } from './CaseView';
 import { Onboarding } from './Onboarding';
 import { SnapshotView } from './PageCards';
+import { usePlan } from './Plan';
 import { SettingsPage } from './Settings';
 import { VerifyPage } from './Verify';
 
@@ -30,6 +31,8 @@ function GlobalBanners() {
   const settings = useSettings();
   const [mirror] = useLive(async () => (await getMeta<MirrorStatus>('mirrorStatus')) ?? MIRROR_OFF, ['mirror']);
   const [storage] = useLive(storageStatus, ['captures']);
+  const plan = usePlan();
+  const e = plan?.entitlement;
   return (
     <>
       {storage?.level === 'block' && (
@@ -42,6 +45,16 @@ function GlobalBanners() {
           New files are queued until then.
         </Banner>
       )}
+      {e?.renewalDue && e.source === 'licence' && (
+        <Banner kind="warn">
+          Your EviCap Pro licence ends on {new Date(e.untilUtc!).toLocaleDateString()}. Contact info@civildigital.co.uk to renew it.
+        </Banner>
+      )}
+      {e?.source === 'trial' && e.trialEndsAtUtc && Date.parse(e.trialEndsAtUtc) - Date.now() < 3 * 86_400_000 && (
+        <Banner>
+          Your Pro trial ends on {new Date(e.trialEndsAtUtc).toLocaleDateString()}. <a href="#/settings">See plans</a>.
+        </Banner>
+      )}
       {mirror?.state === 'error' && <Banner kind="error">Disk mirror problem: {mirror.lastError}</Banner>}
       {mirror?.state === 'off' && settings && !settings.mirrorReminderDismissed && (
         <Banner>
@@ -50,6 +63,17 @@ function GlobalBanners() {
         </Banner>
       )}
     </>
+  );
+}
+
+function PlanBadge() {
+  const plan = usePlan();
+  if (!plan) return null;
+  const pro = plan.entitlement.plan === 'pro';
+  return (
+    <a href="#/settings" className={`badge ${pro ? 'ok' : ''}`} style={{ textDecoration: 'none' }} title={pro ? 'EviCap Pro' : 'Free plan: see Settings → Plan'}>
+      {pro ? (plan.entitlement.source === 'trial' ? 'Pro trial' : 'Pro') : 'Free'}
+    </a>
   );
 }
 
@@ -80,6 +104,7 @@ function App() {
           <a href="#/settings">Settings</a>
         </nav>
         <div className="grow" />
+        <PlanBadge />
         {state && <RecordingIndicator active={!!state.activeCaseId} recording={state.recording} />}
       </header>
       <main className="content stack">

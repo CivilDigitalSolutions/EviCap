@@ -14,7 +14,7 @@
     "compile": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "wxt build && vitest run --config vitest.e2e.config.ts",
+    "test:e2e": "wxt build --mode e2e && vitest run --config vitest.e2e.config.ts",
     "postinstall": "wxt prepare"
   },
   "dependencies": {

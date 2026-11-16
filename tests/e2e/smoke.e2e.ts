@@ -8,7 +8,7 @@ import { verifyChain } from '../../src/lib/audit';
 import { sha256 } from '../../src/lib/hash';
 import type { AuditEvent, CaptureRecord, VisitRecord } from '../../src/lib/types';
 
-const EXT = resolve('.output/chrome-mv3');
+const EXT = resolve('.output/chrome-mv3-e2e');
 const BROWSER =
   process.env.EVICAP_BROWSER ?? 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 

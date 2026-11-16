@@ -4,6 +4,8 @@ import type { MediaResult } from './media';
 import type { ScreenshotMode } from './screenshots';
 import type { TabRecordingResult } from './tab-recording';
 import type { ExportRecord, VerifyRecord } from './export-sw';
+import type { Entitlement } from './plan';
+import type { PlanUsage } from './plan-sw';
 import type { Settings } from './settings';
 import type { CaseStatus, NoteTargetKind } from './types';
 
@@ -34,6 +36,10 @@ export interface RpcMethods {
   mirrorDisconnect(): void;
   mirrorKick(): void;
   status(): { storage: StorageStatus; fingerprint: string; version: string };
+  planStatus(): { entitlement: Entitlement; usage: PlanUsage };
+  activateLicence(text: string): void;
+  removeLicence(): void;
+  startTrial(): void;
   /** Print an export's report.html to report.pdf (F10). */
   printReportPdf(htmlPath: string, pdfPath: string): void;
   recordExport(caseId: string, rec: ExportRecord): void;

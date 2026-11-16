@@ -5,6 +5,7 @@ import { getEnvironment } from './environment';
 import { createStreamingSha256, sha256Blob, sha256Json, type Sha256 } from './hash';
 import { getInstallKey, signJson } from './keys';
 import { rpc } from './messages';
+import { isPro, proRequired } from './plan';
 import { capturePath, openWritable, readFile, removePath, writeFile } from './opfs';
 import { buildReportHtml, type ReportExhibit } from './report';
 import type { AuditEvent, CaptureRecord, VisitRecord } from './types';
@@ -179,6 +180,7 @@ export async function exportCase(
   const c = await getCase(caseId);
   if (!c) throw new Error('Case not found');
   const kind: ExportManifest['kind'] = opts.captureIds ? 'exhibits' : 'case';
+  if (kind === 'exhibits' && !(await isPro())) throw proRequired('exhibitExport');
   onProgress({ stage: 'Reading the case', done: 0, total: 1 });
   const [allCaptures, allVisits, allNotes, events, key, environment] = await Promise.all([
     listCaptures(caseId),

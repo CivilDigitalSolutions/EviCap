@@ -4,6 +4,7 @@ import { verifierPlugin } from './tools/verifier-plugin';
 
 export default defineConfig({
   plugins: [WxtVitest(), verifierPlugin()],
+  define: { __EVICAP_E2E__: 'false' },
   test: {
     environment: 'node',
     setupFiles: ['./tests/setup.ts'],

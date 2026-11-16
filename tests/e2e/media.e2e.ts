@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { chromium, type BrowserContext, type Page, type Worker } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { testLicenceKey } from './licence';
 import { verifyChain } from '../../src/lib/audit';
 import { sha256 } from '../../src/lib/hash';
 import type { MediaResult } from '../../src/lib/media';
@@ -12,7 +13,7 @@ import { jpegWithExif, sampleTiff } from '../fixtures/exif';
 
 /** SPEC F6 and F7-A in a real browser: right-click capture, the media picker, and direct video download. */
 
-const EXT = resolve('.output/chrome-mv3');
+const EXT = resolve('.output/chrome-mv3-e2e');
 const BROWSER = process.env.EVICAP_BROWSER ?? 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 
 let pageServer: Server;
@@ -200,6 +201,7 @@ beforeAll(async () => {
   assets['/noise.png'] = { type: 'image/png', body: new Uint8Array(made.noise) };
   inlineDataUrl = `data:image/png;base64,${Buffer.from(made.noise).toString('base64')}`;
   await startServers();
+  await rpc('activateLicence', await testLicenceKey()); // the media picker and tab recording are Pro
 });
 
 afterAll(async () => {

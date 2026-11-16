@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { rpc } from '@/lib/messages';
+import { FREE_LIMITS, PRICES } from '@/lib/plan';
 import { MirrorPanel } from './Mirror';
 import { go } from './nav';
 
@@ -24,8 +25,8 @@ export function Onboarding() {
         <div>
           <h2>Your evidence stays on this computer</h2>
           <p>
-            Cases, browsing logs and captures are stored only in this browser on this device. Nothing leaves it except billing,
-            and a hash if you later turn on trusted timestamping. Civil Digital can't see or recover your data.
+            Cases, browsing logs and captures are stored only in this browser on this device. Nothing leaves it, except a hash
+            if you later turn on trusted timestamping. Civil Digital can't see or recover your data.
           </p>
           <p>
             <strong>Uninstalling EviCap or clearing browser data deletes everything stored in the browser</strong>, unless you've
@@ -60,6 +61,21 @@ export function Onboarding() {
 
       <div className="card step">
         <div className="step-num">4</div>
+        <div>
+          <h2>Free and Pro</h2>
+          <p>
+            The free plan covers {FREE_LIMITS.openCases} open cases at a time, {FREE_LIMITS.forensicPerMonth} forensic captures a month and
+            single image capture. Pro ({PRICES.monthly} or {PRICES.yearly}) adds the media picker, tab recording and exhibit-only
+            export, with no limits. Hashing, signing, export and verification are on every plan, and your evidence is never locked.
+          </p>
+          <p className="small muted">
+            Try Pro free for 14 days from Settings → Plan. The trial runs on this computer and asks for nothing.
+          </p>
+        </div>
+      </div>
+
+      <div className="card step">
+        <div className="step-num">5</div>
         <div>
           <h2>Start a case</h2>
           <p>

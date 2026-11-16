@@ -25,6 +25,8 @@ import { getSettings, getState, saveSettings, type LiveState, type Settings } fr
 import { dismissJob, markInterruptedJobs } from '@/lib/jobs';
 import { printReportPdf, recordExport, recordVerify } from '@/lib/export-sw';
 import { forensicCapture } from '@/lib/forensic';
+import { requirePro, getEntitlement } from '@/lib/plan';
+import { activateLicence, assertCanOpenCase, assertForensicQuota, refreshPlan, removeLicence, startTrial, usage } from '@/lib/plan-sw';
 import { captureMediaAt, pickAndCapture, type MediaResult } from '@/lib/media';
 import type { TabRecordingEndedMessage } from '@/lib/messages';
 import {
@@ -258,6 +260,7 @@ export default defineBackground(() => {
   }
 
   async function pickMedia(tabId?: number) {
+    await requirePro('mediaPicker');
     const id = await targetTab(tabId);
     const r = await pickAndCapture({ caseId: await activeCase(), tabId: id, visitId: await recorder.currentVisitId(id) });
     broadcast({ scope: 'captures' });
@@ -265,6 +268,7 @@ export default defineBackground(() => {
   }
 
   async function forensic(reload: boolean, tabId?: number) {
+    await assertForensicQuota();
     const id = await targetTab(tabId);
     const rec = await forensicCapture({ caseId: await activeCase(), tabId: id, visitId: await recorder.currentVisitId(id), options: { reload } });
     broadcast({ scope: 'captures', caseId: rec.caseId });
@@ -272,6 +276,7 @@ export default defineBackground(() => {
   }
 
   async function recordTab(tabId?: number) {
+    await requirePro('tabRecording');
     const id = await targetTab(tabId);
     const r = await startTabRecording({
       caseId: await activeCase(),
@@ -360,6 +365,7 @@ export default defineBackground(() => {
   // ---------- RPC ----------
   const handlers: { [K in keyof RpcMethods]: (...args: Parameters<RpcMethods[K]>) => Promise<unknown> } = {
     async createCase(input: CaseInput) {
+      await assertCanOpenCase();
       const c = await createCase(input);
       broadcast({ scope: 'cases', caseId: c.id });
       return { id: c.id };
@@ -369,6 +375,7 @@ export default defineBackground(() => {
       broadcast({ scope: 'cases', caseId: id });
     },
     async setCaseStatus(id, status) {
+      if (status === 'open') await assertCanOpenCase(id);
       await setCaseStatus(id, status);
       broadcast({ scope: 'cases', caseId: id });
     },
@@ -452,6 +459,21 @@ export default defineBackground(() => {
       const key = await getInstallKey();
       return { storage: await storageStatus(), fingerprint: key.fingerprint, version: chrome.runtime.getManifest().version };
     },
+    async planStatus() {
+      return { entitlement: await getEntitlement(), usage: await usage() };
+    },
+    async activateLicence(text) {
+      await activateLicence(text);
+      broadcast({ scope: 'state' });
+    },
+    async removeLicence() {
+      await removeLicence();
+      broadcast({ scope: 'state' });
+    },
+    async startTrial() {
+      await startTrial();
+      broadcast({ scope: 'state' });
+    },
     async printReportPdf(htmlPath, pdfPath) {
       await printReportPdf(htmlPath, pdfPath);
     },
@@ -488,7 +510,13 @@ export default defineBackground(() => {
 
   // ---------- Clock anomalies (SPEC §7.6) ----------
   chrome.alarms.create('clock-check', { periodInMinutes: 1 });
+  chrome.alarms.create('plan-check', { periodInMinutes: 60 * 6 });
   chrome.alarms.onAlarm.addListener(async (alarm) => {
+    if (alarm.name === 'plan-check') {
+      await refreshPlan().catch(() => undefined);
+      broadcast({ scope: 'state' });
+      return;
+    }
     if (alarm.name !== 'clock-check') return;
     const drift = Date.now() - (performance.timeOrigin + performance.now());
     const { lastDrift } = await chrome.storage.session.get('lastDrift');
@@ -526,5 +554,6 @@ export default defineBackground(() => {
     const n = await markInterruptedCaptures(rec && offscreen.length ? [rec.captureId] : []);
     if (n) broadcast({ scope: 'captures' });
     kickMirror();
+    await refreshPlan().catch(() => undefined);
   })();
 });

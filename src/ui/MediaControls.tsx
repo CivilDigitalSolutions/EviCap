@@ -5,7 +5,7 @@ import { rpc } from '@/lib/messages';
 import type { TabRecordingState } from '@/lib/tab-recording';
 import { formatBytes } from '@/lib/util';
 import { Banner, ErrorText } from './components';
-import { useAction, useSessionValue, useTicker } from './hooks';
+import { useAction, useLive, useSessionValue, useTicker } from './hooks';
 
 function elapsed(fromUtc: string) {
   const s = Math.max(0, Math.floor((Date.now() - Date.parse(fromUtc)) / 1000));
@@ -29,6 +29,9 @@ export function MediaControls({ onBeforeInteractive }: { onBeforeInteractive?: (
   useTicker(!!rec);
   const { busy, error, run } = useAction();
   const [result, setResult] = useState<{ kind: 'ok' | 'warn' | 'error'; text: string } | null>(null);
+  const [plan] = useLive(() => rpc('planStatus'), ['state']);
+  const free = plan?.entitlement.plan === 'free';
+  const proMark = free ? <span className="badge" title="Part of EviCap Pro">Pro</span> : null;
 
   return (
     <div className="stack">
@@ -47,7 +50,7 @@ export function MediaControls({ onBeforeInteractive }: { onBeforeInteractive?: (
             })
           }
         >
-          Pick images &amp; videos
+          Pick images &amp; videos {proMark}
         </button>
         {rec ? (
           <button
@@ -74,7 +77,7 @@ export function MediaControls({ onBeforeInteractive }: { onBeforeInteractive?: (
               })
             }
           >
-            Record this tab
+            Record this tab {proMark}
           </button>
         )}
       </div>

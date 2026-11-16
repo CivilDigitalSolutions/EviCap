@@ -12,7 +12,7 @@ import { readWacz } from '../../src/lib/wacz';
 
 /** SPEC F3 (auto-capture) and F4 (forensic capture) in a real browser. */
 
-const EXT = resolve('.output/chrome-mv3');
+const EXT = resolve('.output/chrome-mv3-e2e');
 const BROWSER = process.env.EVICAP_BROWSER ?? 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 
 let server: Server;

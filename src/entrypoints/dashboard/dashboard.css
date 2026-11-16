@@ -158,3 +158,29 @@ label.btn {
 .check-list .warn .mark {
   color: var(--warn);
 }
+
+.plan-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.plan-option {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.plan-option h3 {
+  margin: 0 0 2px;
+}
+
+.plan-option .price {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+
+.plan-option ul {
+  margin: 0 0 12px;
+  padding-left: 18px;
+}

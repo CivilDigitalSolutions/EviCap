@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromium, type BrowserContext, type Page, type Worker } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { testLicenceKey } from './licence';
 import { sha256 } from '../../src/lib/hash';
 import type { AuditEvent, CaptureRecord } from '../../src/lib/types';
 import { readZipEntries, zipEntryBlob } from '../../src/lib/zip';
@@ -12,7 +13,7 @@ import { verifyBundle, zipSource, type ExportManifest } from '../../src/verifier
 
 /** SPEC F10 (export) and F11 (verification) in a real browser. */
 
-const EXT = resolve('.output/chrome-mv3');
+const EXT = resolve('.output/chrome-mv3-e2e');
 const BROWSER = process.env.EVICAP_BROWSER ?? 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 
 let server: Server;
@@ -112,6 +113,7 @@ beforeAll(async () => {
   dash = await ctx.newPage();
   await dash.goto(`chrome-extension://${extId}/dashboard.html`);
   base = await startServer();
+  await rpc('activateLicence', await testLicenceKey()); // exhibit-only export is Pro
 
   ({ id: caseId } = await rpc<{ id: string }>('createCase', { name: 'Export case', reference: 'EX/1', investigator: 'A. Tester', autoCapture: false }));
   await rpc('setActiveCase', caseId);

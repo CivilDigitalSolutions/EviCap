@@ -4,6 +4,7 @@ import { getDb } from './db';
 import { sha256 } from './hash';
 import { normalizeMhtml } from './mhtml';
 import { pageInfo, type PageInfo } from './page-scripts';
+import { autoCaptureAllowed } from './plan-sw';
 import { currentVisitId, isRecordableUrl } from './recorder';
 import { captureVisiblePng } from './screenshots';
 import { getSettings, getState } from './settings';
@@ -130,6 +131,7 @@ export async function autoCapture(tabId: number, visitId: string, caseId: string
     return prev;
   }
 
+  if (!(await autoCaptureAllowed(caseId, url))) return null;
   if (!(await stillCurrent(tabId, visitId, caseId))) return null;
   const degraded: string[] = [];
   const files: NewCaptureFile[] = [];

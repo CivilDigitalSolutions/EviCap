@@ -331,6 +331,7 @@ The first-run tab explains:
 - that data is stored only on this device, and uninstalling or clearing browser data deletes it unless it has been exported or mirrored
 - what the debugger banner means
 - a privacy summary: nothing leaves the device except billing, and timestamp hashes if the user turns timestamping on, with a link to `PRIVACY.md`
+- the Free and Pro plans, and how to start the trial
 
 It then offers to set up a disk mirror folder (§5.2), with a warning not to pick a cloud-synced folder. This step is optional.
 
@@ -452,7 +453,7 @@ Check ExtensionPay's current fees and terms before launch. If a merchant of reco
 - **Offline grace:** if the check fails because of the network, keep the cached entitlement for **14 days**. After that, drop to Free features. Existing data is never locked (principle 5).
 - **Upgrade:** `extpay.openPaymentPage()` / `openPaymentPage('pro-yearly')`. The `onPaid` listener unlocks immediately.
 - **Manage or cancel:** `openPaymentPage()` also serves as the management page.
-- **Trial:** `openTrialPage('14-day')`; trial status is derived from `trialStartedAt`.
+- **Trial:** ~~`openTrialPage('14-day')`~~. Changed in M5: the trial runs on the device (§9.7), so starting it sends nothing and needs no email address.
 
 ### 9.3 Plans and pricing
 
@@ -500,6 +501,21 @@ Organisations can pay Civil Digital by invoice or purchase order instead of by c
 - **Issuing:** Civil Digital runs a small offline script (`tools/issue-licence`, in this repo) to sign keys. The private key never ships in the extension. Keep it offline and backed up; if it leaks, anyone can make keys, and the bundled public key must be replaced in an update.
 - **Limits:** without a server, EviCap can't check a key against other installs or revoke it early. Issue one key per user, so a shared key can be traced to its licence, and rely on the 12-month expiry instead of revocation (as accepted in §9.4).
 - **Audit:** activating, replacing or expiring a key writes a `licence.changed` event.
+
+### 9.7 As built (M5)
+
+**Done:**
+- **Plans** (`src/lib/plan.ts`, `src/lib/plan-sw.ts`). Pro comes from, in order: a valid licence key, a cached paid subscription (kept for 14 days without an answer from the provider), or the trial. Everything is checked on the device.
+- **Trial:** 14 days, started from Settings → Plan, once per browser profile. It is stored in `chrome.storage.local` and sends nothing. This replaces ExtensionPay's trial page: it keeps D4 (no billing connection until the user buys) and asks for no email address. Like every client-side check (§9.4), reinstalling resets it; that is accepted.
+- **Licence keys** (`src/lib/licence.ts`): `EVICAP1-<base64url(JCS payload)>.<base64url(ECDSA P-256 signature)>`. Whitespace is ignored, so a key broken across lines by an email client still works. Test builds (`wxt build --mode e2e`, output in `.output/chrome-mv3-e2e`) also trust a test key in `tests/fixtures/`. Production builds trust only Civil Digital's key.
+- **Issuing:** `node tools/issue-licence.ts issue --org "Acme Ltd" --email jo@acme.example [--months 12]` prints a key and appends it to `tools/keys/issued-licences.csv`. The signing key was created with `init` and lives in `tools/keys/`, which git ignores. **Back up `tools/keys/` offline.**
+- **Limits** are enforced in the service worker: open cases (creating or re-opening a case), forensic captures per calendar month (UTC), and automatic captures per case (further pages are still logged; the first skip writes a `capture.skipped` event). On Free, the media picker, tab recording and exhibit-only export are refused with a message saying the feature is Pro and how to start the trial. Single right-click image capture and direct video stay free.
+- **UI:** Settings → Plan (plan, usage, trial, licence key, prices, contact for invoices); a Free/Pro marker in the dashboard top bar; Pro markers on the picker and tab-recording buttons; renewal and trial-ending banners; an onboarding step about the plans.
+- **Audit:** every plan change (licence activated, replaced or removed, trial started, expiry noticed by the 6-hourly `plan-check` alarm) writes `licence.changed` to each open case. Closed cases are left as they were.
+
+**Not done (needs Civil Digital):**
+- **Card payments.** ExtensionPay is not integrated. Its npm package (`extpay`) is published under a copyleft licence (the package metadata says AGPL-3.0-or-later, the licence file LGPL-3.0). Bundling it in a closed-source extension needs either acceptance of those terms or written permission from its author (§18 item 0). Until then, Pro is sold by invoice with licence keys, and Settings → Plan says so.
+- **Branded reports** (organisation name and logo on the PDF). The report builder already accepts branding; the setting and the Pro check are still to add.
 
 ## 10. Network rules (no outbound data except billing and opt-in timestamps)
 
@@ -586,7 +602,7 @@ Chrome on Android has no extension support, and Safari on iOS lacks `webRequest`
 | **M2 — Media** | F6, F7-A, F7-C, media picker |
 | **M3 — Forensic & auto capture** | F3, F4 (WACZ), replay viewer |
 | **M4 — Export & verify** | F10, F11, report HTML/PDF |
-| **M5 — Billing & launch** | ExtensionPay, invoice licence keys and the issuing script, plan gating, onboarding, store listing, privacy policy hosting |
+| **M5 — Billing & launch** | Done: invoice licence keys and the issuing script, local trial, plan gating, onboarding. Still to do: card billing (§18 item 0), branded reports, store listing submission, privacy policy hosting |
 | **v1.x** | F7-B (HLS/DASH), selectors, search, annotations, trusted timestamps (FreeTSA), case encryption, Firefox build, social-media capture recipes (auto-expand comments, timeline scroll) |
 | **v2** | Mobile app, zkTLS research. Anything else that sends data off the device (team sync, server-side signing) needs a change to the network rules (§10) first. |
 
@@ -608,4 +624,5 @@ Chrome on Android has no extension support, and Safari on iOS lacks `webRequest`
 | D12 | **No volume discounts.** Invoiced organisations pay the same per-user price. |
 
 ## 18. Open questions
+0. **Card billing provider (blocks online sales).** ExtensionPay's client library is copyleft (AGPL-3.0-or-later in its package metadata, LGPL-3.0 in its licence file). Options: (a) accept that, or get written terms from its author; (b) use Lemon Squeezy, a merchant of record with a documented licence-key API, which would also handle VAT if Civil Digital registers later; (c) launch with invoice licence keys only. Whichever is chosen, Civil Digital must create the provider and Stripe accounts. EviCap's plan code is ready for a subscription source.
 1. **Fees:** check ExtensionPay's current fees. At £4 a month, fixed per-payment card fees take a larger share than on the annual plan.

@@ -36,10 +36,10 @@ The only information EviCap sends off your device is billing information (sectio
 To save an original copy of a page, image or video you chose to capture, EviCap may re-request that item from the website it came from, as your browser normally does to display it. These requests go only to the website hosting the content. As with normal browsing, that website may see your IP address, browser details and any cookies your browser sends to it. EviCap does not send your case data to these websites.
 
 ### 2.2 Billing and subscriptions (ExtensionPay and Stripe)
-Paid features are sold through **ExtensionPay** (extensionpay.com), which uses **Stripe** to process payments. If you start a trial, buy a subscription, or sign in to activate a subscription:
+Paid features are sold through **ExtensionPay** (extensionpay.com), which uses **Stripe** to process payments. If you buy a subscription, or sign in to activate one:
 
 - you provide your **email address** and **payment details** directly to ExtensionPay/Stripe on their own pages. EviCap never sees or stores your card details.
-- the extension connects to extensionpay.com to check your **subscription status** (for example: whether you have paid, your plan, trial start date and subscription status). It stores a copy of this status locally so the extension works offline.
+- the extension connects to extensionpay.com to check your **subscription status** (for example: whether you have paid, your plan and subscription status). It stores a copy of this status locally so the extension works offline.
 - we, as the seller, can see the information ExtensionPay and Stripe make available to sellers, such as your email address, plan, payment and subscription history, and billing country. We use it only to provide, support and account for your subscription, and to meet legal and tax obligations.
 
 **No case data, browsing logs, captures or files are ever sent as part of billing.**
@@ -50,7 +50,7 @@ ExtensionPay's and Stripe's handling of your information is governed by their ow
 - ExtensionPay: https://extensionpay.com
 - Stripe: https://stripe.com/privacy
 
-If you only use the free features, EviCap makes no billing connection at all. It contacts ExtensionPay only after you start a trial, buy a subscription or sign in.
+If you only use the free features, EviCap makes no billing connection at all. It contacts ExtensionPay only after you buy a subscription or sign in. **The 14-day free trial runs entirely on your device**: starting it sends nothing to anyone.
 
 ### 2.3 Optional trusted timestamping (off by default)
 If you **choose to turn on** trusted timestamping, EviCap sends a **cryptographic hash** of a capture, of a case's audit log, or of an export to **FreeTSA** (freetsa.org), a free Time Stamping Authority. A hash is a short fixed-length fingerprint (for example `sha256:9f86d0…`). The original content cannot be reconstructed from it. **No URLs, page content, files, case details or personal information are sent.** As with any internet connection, FreeTSA can see your IP address and when each request is made. FreeTSA returns a signed timestamp token, which EviCap stores locally. FreeTSA's own terms and privacy policy apply to that connection. You can turn this feature off at any time.
@@ -89,7 +89,7 @@ EviCap's use of information received from browser APIs complies with the [Chrome
 | Page capture, scripting, active tab, context menus, side panel | To save pages, show capture tools and menus, and display the live log |
 | Storage, unlimited storage | To store your evidence locally without the normal size limits |
 | Downloads | To save exports you request |
-| Alarms | To re-check subscription status periodically (only once you have started a trial, bought or signed in), and to run scheduled timestamping if you turn it on |
+| Alarms | To re-check your plan on the device periodically (for example, to notice that a trial or licence has ended), and the subscription status only once you have bought or signed in, and to run scheduled timestamping if you turn it on |
 
 ## 6. Retention and deletion
 
