@@ -3,7 +3,8 @@
  * the websites being captured (SPEC §10, row 3: re-fetching the originals the
  * user chose to capture, accepted in D5). It sends only the ordinary request
  * a browser sends to view the item: no case data, logs or captures.
- * tests/network-rules.test.ts fails if `fetch` is used anywhere else.
+ * tests/media.test.ts fails if `fetch` is used anywhere else (except
+ * billing.ts, which talks to Lemon Squeezy).
  */
 
 import { sleep } from './util';

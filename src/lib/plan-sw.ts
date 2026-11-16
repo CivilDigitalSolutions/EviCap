@@ -1,4 +1,6 @@
 import { appendEvent } from './audit';
+import { activateLemon, deactivateLemon, isLemonKey, validateLemon } from './billing';
+import { getEnvironment } from './environment';
 import { getDb, listCaptures } from './db';
 import { checkLicence } from './licence';
 import { FREE_LIMITS, getEntitlement, getPlanState, monthStartUtc, PlanError, setPlanState, type Entitlement } from './plan';
@@ -64,6 +66,9 @@ function summary(e: Entitlement) {
     source: e.source,
     untilUtc: e.untilUtc,
     ...(e.licence ? { licenceId: e.licence.licenceId, org: e.licence.org, email: e.licence.email, licenceExpiresAtUtc: e.licence.expiresAtUtc } : {}),
+    ...(e.source === 'subscription' && e.subscription
+      ? { subscription: 'lemonsqueezy', email: e.subscription.email, variant: e.subscription.variantName, instanceId: e.subscription.instanceId }
+      : {}),
   };
 }
 
@@ -82,7 +87,16 @@ export async function recordPlanChange(reason: string, force = false): Promise<E
   return e;
 }
 
+/** Label for this computer in the buyer's Lemon Squeezy account: browser and system only. */
+async function instanceName(): Promise<string> {
+  const env = await getEnvironment();
+  const browser = env.browser.split(' ')[0] || 'browser';
+  const os = env.os.split(' (')[0] || 'unknown system';
+  return `EviCap on ${browser}, ${os}`;
+}
+
 export async function activateLicence(text: string): Promise<Entitlement> {
+  if (isLemonKey(text)) return activateSubscription(text.trim());
   const check = await checkLicence(text);
   if (!check.ok) throw new Error(check.reason);
   if (check.expired) throw new Error(`This licence expired on ${check.payload.expiresAtUtc.slice(0, 10)}. Contact info@civildigital.co.uk to renew it.`);
@@ -91,9 +105,43 @@ export async function activateLicence(text: string): Promise<Entitlement> {
   return recordPlanChange(previous ? 'licence key replaced' : 'licence key activated', true);
 }
 
-export async function removeLicence(): Promise<Entitlement> {
-  await setPlanState({ licenceKey: null });
-  return recordPlanChange('licence key removed', true);
+async function activateSubscription(key: string): Promise<Entitlement> {
+  const previous = (await getPlanState()).subscription;
+  if (previous?.key === key && previous.status === 'active') return recordPlanChange('subscription key checked');
+  const lic = await activateLemon(key, await instanceName());
+  if (previous) await deactivateLemon(previous);
+  await setPlanState({ subscription: lic });
+  return recordPlanChange(previous ? 'subscription key replaced' : 'subscription key activated', true);
+}
+
+/** Remove the invoice licence, the subscription key, or both, from this computer. */
+export async function removeLicence(kind: 'licence' | 'subscription' | 'all' = 'all'): Promise<Entitlement> {
+  const state = await getPlanState();
+  const removed: string[] = [];
+  if (kind !== 'subscription' && state.licenceKey) {
+    await setPlanState({ licenceKey: null });
+    removed.push('licence key');
+  }
+  if (kind !== 'licence' && state.subscription) {
+    // Frees the activation so the key can be used on another computer.
+    await deactivateLemon(state.subscription);
+    await setPlanState({ subscription: null });
+    removed.push('subscription key');
+  }
+  if (!removed.length) return getEntitlement();
+  return recordPlanChange(`${removed.join(' and ')} removed`, true);
+}
+
+const RECHECK_MS = 20 * 3_600_000;
+
+/** Ask Lemon Squeezy about the subscription key: about once a day, or now when `force` is set. */
+export async function checkSubscription(force = false): Promise<void> {
+  const sub = (await getPlanState()).subscription;
+  if (!sub) return;
+  if (!force && Date.now() - Date.parse(sub.checkedAtUtc) < RECHECK_MS) return;
+  const next = await validateLemon(sub);
+  // The key may have been removed or replaced while the check ran.
+  if ((await getPlanState()).subscription?.instanceId === sub.instanceId) await setPlanState({ subscription: next });
 }
 
 export async function startTrial(): Promise<Entitlement> {
@@ -103,7 +151,8 @@ export async function startTrial(): Promise<Entitlement> {
   return recordPlanChange('14-day trial started', true);
 }
 
-/** On start-up and daily: notice expiry of a licence, trial or subscription. */
+/** On start-up and every 6 hours: notice the end of a licence, trial or subscription. */
 export async function refreshPlan(): Promise<Entitlement> {
+  await checkSubscription().catch(() => undefined);
   return recordPlanChange('plan changed');
 }

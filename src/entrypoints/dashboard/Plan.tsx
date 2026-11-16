@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { LEMON, onlinePurchaseReady } from '@/lib/billing-config';
 import { rpc } from '@/lib/messages';
 import { FREE_LIMITS, PRICES } from '@/lib/plan';
 import { Banner, ErrorText } from '@/ui/components';
@@ -7,11 +8,13 @@ import { useAction, useLive } from '@/ui/hooks';
 const dateText = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
 
+const timeText = (iso: string) => new Date(iso).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
 export function usePlan() {
   return useLive(() => rpc('planStatus'), ['state', 'cases', 'captures'])[0];
 }
 
-/** The plan, licence key and trial (SPEC §9). */
+/** The plan, purchase, licence keys and trial (SPEC §9). */
 export function PlanCard() {
   const status = usePlan();
   const [key, setKey] = useState('');
@@ -20,6 +23,8 @@ export function PlanCard() {
   if (!status) return null;
   const e = status.entitlement;
   const u = status.usage;
+  const sub = e.subscription;
+  const online = onlinePurchaseReady();
   const act = (fn: () => Promise<unknown>, msg: string) =>
     run(async () => {
       setDone(null);
@@ -33,9 +38,22 @@ export function PlanCard() {
         <h2 style={{ margin: 0 }}>Plan</h2>
         <span className={`badge ${e.plan === 'pro' ? 'ok' : ''}`}>{e.plan === 'pro' ? 'Pro' : 'Free'}</span>
       </div>
+
       {e.plan === 'pro' && e.source === 'licence' && e.licence && (
         <p style={{ margin: 0 }}>
           Pro through a licence for <strong>{e.licence.email}</strong> ({e.licence.org}), valid until <strong>{dateText(e.licence.expiresAtUtc)}</strong>.
+        </p>
+      )}
+      {e.plan === 'pro' && e.source === 'subscription' && sub && (
+        <p style={{ margin: 0 }}>
+          Pro through your subscription{sub.variantName ? ` (${sub.variantName})` : ''}
+          {sub.email ? (
+            <>
+              {' '}
+              for <strong>{sub.email}</strong>
+            </>
+          ) : null}
+          . Last checked {timeText(sub.checkedAtUtc)}.
         </p>
       )}
       {e.plan === 'pro' && e.source === 'trial' && (
@@ -43,7 +61,6 @@ export function PlanCard() {
           Pro trial: ends on <strong>{dateText(e.trialEndsAtUtc)}</strong>.
         </p>
       )}
-      {e.plan === 'pro' && e.source === 'subscription' && <p style={{ margin: 0 }}>Pro through your subscription.</p>}
       {e.plan === 'free' && (
         <>
           <p style={{ margin: 0 }}>
@@ -59,47 +76,92 @@ export function PlanCard() {
         <Banner kind="warn">Your licence ends on {dateText(e.untilUtc)}. Contact info@civildigital.co.uk to renew it.</Banner>
       )}
       {e.licenceProblem && <Banner kind="warn">{e.licenceProblem}</Banner>}
+      {e.subscriptionProblem && <Banner kind="warn">{e.subscriptionProblem}</Banner>}
+      {sub && !e.subscriptionProblem && sub.problem && <p className="small muted" style={{ margin: 0 }}>Last check: {sub.problem}</p>}
 
       {e.plan === 'free' && (
-        <div className="plan-grid">
-          <div className="plan-option">
-            <h3>Pro</h3>
-            <p className="price">
-              {PRICES.monthly} <span className="muted small">or {PRICES.yearly}</span>
-            </p>
-            <ul className="small">
-              <li>Unlimited open cases, automatic and forensic captures</li>
-              <li>Pick several images and videos at once</li>
-              <li>Record a tab as video, for streamed or protected video</li>
-              <li>Export selected exhibits only</li>
-            </ul>
-            {e.canStartTrial ? (
-              <button type="button" className="primary" disabled={busy} onClick={() => act(() => rpc('startTrial'), 'Your 14-day Pro trial has started.')}>
+        <div className="plan-option">
+          <h3>Pro</h3>
+          <p className="price">
+            {PRICES.monthly} <span className="muted small">or {PRICES.yearly}</span>
+          </p>
+          <ul className="small">
+            <li>Unlimited open cases, automatic and forensic captures</li>
+            <li>Pick several images and videos at once</li>
+            <li>Record a tab as video, for streamed or protected video</li>
+            <li>Export selected exhibits only</li>
+          </ul>
+          <div className="row">
+            {online && LEMON.checkoutMonthly && (
+              <a className="btn primary" href={LEMON.checkoutMonthly} target="_blank" rel="noreferrer">
+                Buy monthly
+              </a>
+            )}
+            {online && LEMON.checkoutYearly && (
+              <a className="btn" href={LEMON.checkoutYearly} target="_blank" rel="noreferrer">
+                Buy yearly
+              </a>
+            )}
+            {e.canStartTrial && (
+              <button type="button" className={online ? '' : 'primary'} disabled={busy} onClick={() => act(() => rpc('startTrial'), 'Your 14-day Pro trial has started.')}>
                 Start 14-day free trial
               </button>
-            ) : (
-              <p className="small muted" style={{ margin: 0 }}>
-                The trial has been used on this computer{e.trialEndsAtUtc ? ` (ended ${dateText(e.trialEndsAtUtc)})` : ''}.
-              </p>
             )}
-            <p className="small muted" style={{ margin: '8px 0 0' }}>
-              The trial runs on this computer and sends nothing. To buy Pro for yourself or your team, email{' '}
-              <a href="mailto:info@civildigital.co.uk?subject=EviCap%20Pro">info@civildigital.co.uk</a>. Civil Digital invoices organisations
-              and sends each user a licence key.
-            </p>
           </div>
+          {!e.canStartTrial && (
+            <p className="small muted" style={{ margin: '8px 0 0' }}>
+              The trial has been used on this computer{e.trialEndsAtUtc ? ` (ended ${dateText(e.trialEndsAtUtc)})` : ''}.
+            </p>
+          )}
+          <p className="small muted" style={{ margin: '8px 0 0' }}>
+            {online ? (
+              <>
+                Payment is handled by Lemon Squeezy, which emails you a licence key to paste below. The trial runs on this computer and sends
+                nothing. Organisations can pay by invoice:{' '}
+              </>
+            ) : (
+              <>The trial runs on this computer and sends nothing. To buy Pro for yourself or your team, email </>
+            )}
+            <a href="mailto:info@civildigital.co.uk?subject=EviCap%20Pro">info@civildigital.co.uk</a>
+            {online ? '.' : '. Civil Digital invoices organisations and sends each user a licence key.'}
+          </p>
+        </div>
+      )}
+
+      {sub && (
+        <div className="row">
+          <button type="button" disabled={busy} onClick={() => act(() => rpc('checkSubscription'), 'Subscription checked.')}>
+            Check now
+          </button>
+          {LEMON.customerPortal && (
+            <a className="btn" href={LEMON.customerPortal} target="_blank" rel="noreferrer">
+              Manage subscription
+            </a>
+          )}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              if (confirm('Remove the subscription key from this computer? It can then be used on another computer. Your subscription itself is not cancelled.'))
+                void act(() => rpc('removeLicence', 'subscription'), 'Subscription key removed from this computer.');
+            }}
+          >
+            Remove from this computer
+          </button>
         </div>
       )}
 
       <div className="stack">
         <h3 style={{ margin: 0 }}>Licence key</h3>
         <p className="small muted" style={{ margin: 0 }}>
-          Paste the key Civil Digital sent you. It is checked on this computer; nothing is sent anywhere.
+          {online
+            ? 'Paste the key from your EviCap Pro receipt, or the EVICAP1- key Civil Digital sent your organisation. Receipt keys are checked with Lemon Squeezy; EVICAP1- keys are checked on this computer and nothing is sent.'
+            : 'Paste the key Civil Digital sent you. It is checked on this computer; nothing is sent anywhere.'}
         </p>
         <textarea
           rows={3}
           className="mono small"
-          placeholder="EVICAP1-…"
+          placeholder={online ? 'EVICAP1-… or xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' : 'EVICAP1-…'}
           value={key}
           onChange={(ev) => setKey(ev.target.value)}
           aria-label="Licence key"
@@ -108,7 +170,7 @@ export function PlanCard() {
         <div className="row">
           <button
             type="button"
-            className={e.source === 'licence' ? '' : 'primary'}
+            className={e.plan === 'pro' ? '' : 'primary'}
             disabled={busy || !key.trim()}
             onClick={() =>
               act(async () => {
@@ -117,7 +179,7 @@ export function PlanCard() {
               }, 'Licence activated. EviCap Pro is on.')
             }
           >
-            {e.licence ? 'Replace licence' : 'Activate licence'}
+            {e.licence || sub ? 'Use this key' : 'Activate licence'}
           </button>
           {e.licence && (
             <button
@@ -125,7 +187,7 @@ export function PlanCard() {
               disabled={busy}
               onClick={() => {
                 if (confirm('Remove the licence key from this computer? Pro features switch off; your evidence is not affected.'))
-                  void act(() => rpc('removeLicence'), 'Licence removed.');
+                  void act(() => rpc('removeLicence', 'licence'), 'Licence removed.');
               }}
             >
               Remove licence

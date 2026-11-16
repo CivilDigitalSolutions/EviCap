@@ -38,7 +38,8 @@ export interface RpcMethods {
   status(): { storage: StorageStatus; fingerprint: string; version: string };
   planStatus(): { entitlement: Entitlement; usage: PlanUsage };
   activateLicence(text: string): void;
-  removeLicence(): void;
+  removeLicence(kind?: 'licence' | 'subscription' | 'all'): void;
+  checkSubscription(): void;
   startTrial(): void;
   /** Print an export's report.html to report.pdf (F10). */
   printReportPdf(htmlPath: string, pdfPath: string): void;

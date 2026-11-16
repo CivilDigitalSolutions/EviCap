@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import type { LemonLicence } from '../src/lib/billing';
 import { checkLicence, decodeLicence } from '../src/lib/licence';
 import { computeEntitlement, EMPTY_PLAN, getEntitlement, monthStartUtc, PlanError, proRequired, setPlanState } from '../src/lib/plan';
 import { signLicence } from '../tools/issue-licence';
@@ -82,19 +83,26 @@ describe('entitlement', () => {
   });
 
   it('keeps a paid subscription for 14 days without an answer from the provider', () => {
-    const sub = {
-      provider: 'extensionpay' as const,
-      paid: true,
+    const sub: LemonLicence = {
+      key: '38b1460a-5104-4067-a91d-77b872934d51',
+      instanceId: 'i-1',
       status: 'active',
-      plan: 'monthly',
-      email: null,
+      email: 'jo@example.test',
+      variantName: 'Monthly',
+      expiresAtUtc: null,
       checkedAtUtc: NOW.toISOString(),
       lastOkAtUtc: NOW.toISOString(),
+      problem: null,
     };
     const state = { ...EMPTY_PLAN, subscription: sub };
-    expect(computeEntitlement(state, null, new Date(NOW.getTime() + 13 * DAY)).plan).toBe('pro');
-    expect(computeEntitlement(state, null, new Date(NOW.getTime() + 15 * DAY)).plan).toBe('free');
-    expect(computeEntitlement({ ...state, subscription: { ...sub, status: 'canceled' } }, null, NOW).plan).toBe('free');
+    expect(computeEntitlement(state, null, new Date(NOW.getTime() + 13 * DAY))).toMatchObject({ plan: 'pro', source: 'subscription' });
+    const stale = computeEntitlement(state, null, new Date(NOW.getTime() + 15 * DAY));
+    expect(stale.plan).toBe('free');
+    expect(stale.subscriptionProblem).toMatch(/not been able to check your subscription for 14 days/);
+    const ended = computeEntitlement({ ...state, subscription: { ...sub, status: 'expired' } }, null, NOW);
+    expect(ended.plan).toBe('free');
+    expect(ended.subscriptionProblem).toMatch(/subscription has ended/);
+    expect(computeEntitlement({ ...state, subscription: { ...sub, status: 'disabled' } }, null, NOW).plan).toBe('free');
   });
 
   it('reads the stored plan', async () => {

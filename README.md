@@ -22,9 +22,9 @@ Built so far (spec milestones M0 to M5):
 - Disk mirror: optional copy of every case to a folder the user picks, re-hashed after writing
 - Notes (with version history) and tags
 - Popup, side panel, dashboard, onboarding, settings
-- Plans: Free limits and Pro features enforced on the device, a 14-day trial that sends nothing, and signed offline licence keys for invoiced organisations
+- Plans: Free limits and Pro features enforced on the device, a 14-day trial that sends nothing, card subscriptions through Lemon Squeezy licence keys, and signed offline licence keys for invoiced organisations
 
-Still to do before launch: card billing (the provider choice is open, see SPEC §18), branded reports, the store listing and hosting the privacy policy.
+Still to do before launch: set up the Lemon Squeezy store and fill in `src/lib/billing-config.ts` (SPEC §18), branded reports, the store listing and hosting the privacy policy.
 
 ## Licence keys
 
@@ -64,13 +64,13 @@ Then open `chrome://extensions` (or `edge://extensions`), turn on Developer mode
 npm test
 ```
 
-Unit tests: canonical JSON (RFC 8785 vectors), SHA-256 (NIST vectors), audit chain building and tamper detection, signing, recording rules, EXIF reading, WARC/WACZ writing and reading, MHTML comparison, the ZIP writer and reader (including ZIP64), exhibit-only redaction, CSV and report output, the bundled verifier, licence keys (valid, changed, expired, signed by another key) and plan rules, and a check that only the network module makes requests.
+Unit tests: canonical JSON (RFC 8785 vectors), SHA-256 (NIST vectors), audit chain building and tamper detection, signing, recording rules, EXIF reading, WARC/WACZ writing and reading, MHTML comparison, the ZIP writer and reader (including ZIP64), exhibit-only redaction, CSV and report output, the bundled verifier, licence keys (valid, changed, expired, signed by another key), Lemon Squeezy checks (wrong product, offline, unknown key, what is sent) and plan rules, and a check that only the network module makes requests.
 
 ```bash
 npm run test:e2e
 ```
 
-Builds a test copy of the extension (`.output/chrome-mv3-e2e`, which also trusts a test licence key), loads it into a real browser (Edge by default; set `EVICAP_BROWSER` to another Chromium-based browser's path) and checks recording, redirects, SPA navigation, screenshots (including the pixels of a full-page capture), signatures, the audit chain, the disk mirror and the dashboard; and media capture: a cross-origin image byte for byte with its EXIF, the picker, the largest srcset version, inline images, a video download that is cut off and resumed, and streamed video being sent to tab recording; automatic capture (files, visit links, deduplication, changed pages, the size limit) and forensic capture with and without a reload (WACZ contents and hashes, HTTP headers, server address, network log, the offline snapshot); and export: the ZIP, report and PDF, verify.html opened from disk passing the export and catching a changed byte, an exhibit-only export, and the dashboard checks; and plans: the open-case and forensic limits, Pro features refused on Free, licence keys accepted and rejected from Settings, the trial, and the audit records of each change.
+Builds a test copy of the extension (`.output/chrome-mv3-e2e`, which also trusts a test licence key), loads it into a real browser (Edge by default; set `EVICAP_BROWSER` to another Chromium-based browser's path) and checks recording, redirects, SPA navigation, screenshots (including the pixels of a full-page capture), signatures, the audit chain, the disk mirror and the dashboard; and media capture: a cross-origin image byte for byte with its EXIF, the picker, the largest srcset version, inline images, a video download that is cut off and resumed, and streamed video being sent to tab recording; automatic capture (files, visit links, deduplication, changed pages, the size limit) and forensic capture with and without a reload (WACZ contents and hashes, HTTP headers, server address, network log, the offline snapshot); and export: the ZIP, report and PDF, verify.html opened from disk passing the export and catching a changed byte, an exhibit-only export, and the dashboard checks; and plans: the open-case and forensic limits, Pro features refused on Free, licence keys accepted and rejected from Settings, the trial, Lemon Squeezy subscription keys against a fake store (wrong product, activation limit, activation, the subscription ending, removal), and the audit records of each change.
 
 Tab recording needs a real click on the toolbar button, so it is checked by hand: open a page with a video, click EviCap, press **Record this tab**, play for a few seconds, press **Stop**, and open the capture.
 

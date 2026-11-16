@@ -26,7 +26,7 @@ import { dismissJob, markInterruptedJobs } from '@/lib/jobs';
 import { printReportPdf, recordExport, recordVerify } from '@/lib/export-sw';
 import { forensicCapture } from '@/lib/forensic';
 import { requirePro, getEntitlement } from '@/lib/plan';
-import { activateLicence, assertCanOpenCase, assertForensicQuota, refreshPlan, removeLicence, startTrial, usage } from '@/lib/plan-sw';
+import { activateLicence, assertCanOpenCase, assertForensicQuota, checkSubscription, refreshPlan, recordPlanChange, removeLicence, startTrial, usage } from '@/lib/plan-sw';
 import { captureMediaAt, pickAndCapture, type MediaResult } from '@/lib/media';
 import type { TabRecordingEndedMessage } from '@/lib/messages';
 import {
@@ -466,8 +466,13 @@ export default defineBackground(() => {
       await activateLicence(text);
       broadcast({ scope: 'state' });
     },
-    async removeLicence() {
-      await removeLicence();
+    async removeLicence(kind) {
+      await removeLicence(kind);
+      broadcast({ scope: 'state' });
+    },
+    async checkSubscription() {
+      await checkSubscription(true);
+      await recordPlanChange('subscription checked');
       broadcast({ scope: 'state' });
     },
     async startTrial() {

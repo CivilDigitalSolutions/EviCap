@@ -1,8 +1,9 @@
+import type { LemonLicence } from './billing';
 import { checkLicence, type LicenceCheck, type LicencePayload } from './licence';
 
 /**
- * Free and Pro (SPEC §9.3). Pro comes from a licence key (§9.6), an online
- * subscription (§9.2) or the 14-day trial. Checks run on this device only
+ * Free and Pro (SPEC §9.3). Pro comes from an invoice licence key (§9.6), a
+ * Lemon Squeezy subscription key (§9.2) or the 14-day trial. Checks run on this device only
  * (§9.4). Losing Pro never locks existing data: closed cases, exports and
  * verification always work.
  */
@@ -24,21 +25,11 @@ const FEATURE_NAMES: Record<ProFeature, string> = {
   search: 'Search',
 };
 
-export interface SubscriptionCache {
-  provider: 'extensionpay';
-  paid: boolean;
-  status: string;
-  plan: string | null;
-  email: string | null;
-  checkedAtUtc: string;
-  /** Last time the provider answered. Pro is kept for 14 days without an answer. */
-  lastOkAtUtc: string;
-}
-
 export interface PlanState {
   trialStartedAtUtc: string | null;
   licenceKey: string | null;
-  subscription: SubscriptionCache | null;
+  /** A Lemon Squeezy subscription key activated on this computer. */
+  subscription: LemonLicence | null;
   /** The plan last recorded in the audit log, to notice changes such as expiry. */
   recorded: { plan: 'free' | 'pro'; source: Entitlement['source'] } | null;
 }
@@ -56,6 +47,9 @@ export interface Entitlement {
   canStartTrial: boolean;
   /** Within 30 days of the licence expiring. */
   renewalDue: boolean;
+  subscription: LemonLicence | null;
+  /** Why a stored subscription key is not giving Pro (ended, disabled, not checked for too long). */
+  subscriptionProblem: string | null;
 }
 
 export const EMPTY_PLAN: PlanState = { trialStartedAtUtc: null, licenceKey: null, subscription: null, recorded: null };
@@ -72,17 +66,30 @@ export function computeEntitlement(state: PlanState, licence: LicenceCheck | nul
     trialEndsAtUtc: trialEnds,
     canStartTrial: !state.trialStartedAtUtc,
     renewalDue: false,
+    subscription: state.subscription,
+    subscriptionProblem: subscriptionProblem(state.subscription, t),
   };
   if (licence?.ok && !licence.expired) {
     const until = licence.payload.expiresAtUtc;
     return { ...base, plan: 'pro', source: 'licence', untilUtc: until, renewalDue: Date.parse(until) - t < RENEWAL_NOTICE_DAYS * DAY };
   }
   const sub = state.subscription;
-  if (sub?.paid && ['active', 'trialing', 'past_due'].includes(sub.status) && t - Date.parse(sub.lastOkAtUtc) < OFFLINE_GRACE_DAYS * DAY) {
-    return { ...base, plan: 'pro', source: 'subscription', untilUtc: null };
+  if (sub && !base.subscriptionProblem) {
+    return { ...base, plan: 'pro', source: 'subscription', untilUtc: sub.expiresAtUtc };
   }
   if (trialEnds && Date.parse(trialEnds) > t) return { ...base, plan: 'pro', source: 'trial', untilUtc: trialEnds };
   return { ...base, plan: 'free', source: null, untilUtc: null };
+}
+
+function subscriptionProblem(sub: LemonLicence | null, t: number): string | null {
+  if (!sub) return null;
+  if (sub.status === 'expired') return 'Your subscription has ended. Renew it from your Lemon Squeezy account to use Pro again.';
+  if (sub.status === 'disabled') return 'This subscription key has been disabled. Contact info@civildigital.co.uk.';
+  if (sub.status === 'invalid') return sub.problem ?? 'This subscription key is no longer valid.';
+  if (t - Date.parse(sub.lastOkAtUtc) >= OFFLINE_GRACE_DAYS * DAY) {
+    return `EviCap has not been able to check your subscription for ${OFFLINE_GRACE_DAYS} days. Connect to the internet and press Check now.`;
+  }
+  return null;
 }
 
 /** Thrown when a free-plan limit or a Pro feature stops an action. The UI offers the upgrade. */

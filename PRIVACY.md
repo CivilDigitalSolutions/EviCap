@@ -35,22 +35,22 @@ The only information EviCap sends off your device is billing information (sectio
 ### 2.1 Websites you capture
 To save an original copy of a page, image or video you chose to capture, EviCap may re-request that item from the website it came from, as your browser normally does to display it. These requests go only to the website hosting the content. As with normal browsing, that website may see your IP address, browser details and any cookies your browser sends to it. EviCap does not send your case data to these websites.
 
-### 2.2 Billing and subscriptions (ExtensionPay and Stripe)
-Paid features are sold through **ExtensionPay** (extensionpay.com), which uses **Stripe** to process payments. If you buy a subscription, or sign in to activate one:
+### 2.2 Billing and subscriptions (Lemon Squeezy)
+Card subscriptions to EviCap Pro are sold by **Lemon Squeezy** (lemonsqueezy.com), which acts as the reseller ("merchant of record"): you buy from Lemon Squeezy, which processes the payment and handles sales tax, and then pays us.
 
-- you provide your **email address** and **payment details** directly to ExtensionPay/Stripe on their own pages. EviCap never sees or stores your card details.
-- the extension connects to extensionpay.com to check your **subscription status** (for example: whether you have paid, your plan and subscription status). It stores a copy of this status locally so the extension works offline.
-- we, as the seller, can see the information ExtensionPay and Stripe make available to sellers, such as your email address, plan, payment and subscription history, and billing country. We use it only to provide, support and account for your subscription, and to meet legal and tax obligations.
+- **Buying:** the buttons in EviCap open Lemon Squeezy's checkout in a normal browser tab. You give your **email address** and **payment details** to Lemon Squeezy on its own pages. EviCap never sees or stores your card details.
+- **Activating:** Lemon Squeezy emails you a licence key. When you paste it into EviCap, the extension sends Lemon Squeezy the **key** and a label for your computer naming your browser and operating system (for example "EviCap on Edge, Windows 11"). Lemon Squeezy returns the key's status, an activation ID for your computer, and your plan and the email address you bought with, which EviCap stores on your device.
+- **Checking:** about once a day while a key is entered, EviCap sends the key and the activation ID to check that the subscription is still active. If the check can't be made, EviCap keeps working on the last answer for up to 14 days.
+- **Removing:** removing the key in EviCap tells Lemon Squeezy to release the activation, so you can use the key on another computer.
+- **What we see:** as the vendor, we can see the information Lemon Squeezy makes available to sellers, such as your name, email address, country, plan, order and subscription history, and your activations (with the computer labels above). We use it only to provide, support and account for your subscription, and to meet legal and tax obligations.
 
 **No case data, browsing logs, captures or files are ever sent as part of billing.**
 
 **Paying by invoice.** If your organisation buys EviCap from Civil Digital by invoice or purchase order, we hold the details needed to invoice you and set up your users: your organisation's name, billing contact details, the email addresses of licensed users, and payment records. We send each user a licence key to enter in EviCap. The key contains the user's email address, organisation name and licence dates. EviCap checks it on your device without contacting us or anyone else.
 
-ExtensionPay's and Stripe's handling of your information is governed by their own privacy policies:
-- ExtensionPay: https://extensionpay.com
-- Stripe: https://stripe.com/privacy
+Lemon Squeezy's handling of your information is governed by its own privacy policy: https://www.lemonsqueezy.com/privacy
 
-If you only use the free features, EviCap makes no billing connection at all. It contacts ExtensionPay only after you buy a subscription or sign in. **The 14-day free trial runs entirely on your device**: starting it sends nothing to anyone.
+If you only use the free features, EviCap makes no billing connection at all. It contacts Lemon Squeezy only after you paste a subscription licence key. **The 14-day free trial runs entirely on your device**: starting it sends nothing to anyone.
 
 ### 2.3 Optional trusted timestamping (off by default)
 If you **choose to turn on** trusted timestamping, EviCap sends a **cryptographic hash** of a capture, of a case's audit log, or of an export to **FreeTSA** (freetsa.org), a free Time Stamping Authority. A hash is a short fixed-length fingerprint (for example `sha256:9f86d0…`). The original content cannot be reconstructed from it. **No URLs, page content, files, case details or personal information are sent.** As with any internet connection, FreeTSA can see your IP address and when each request is made. FreeTSA returns a signed timestamp token, which EviCap stores locally. FreeTSA's own terms and privacy policy apply to that connection. You can turn this feature off at any time.
@@ -89,14 +89,14 @@ EviCap's use of information received from browser APIs complies with the [Chrome
 | Page capture, scripting, active tab, context menus, side panel | To save pages, show capture tools and menus, and display the live log |
 | Storage, unlimited storage | To store your evidence locally without the normal size limits |
 | Downloads | To save exports you request |
-| Alarms | To re-check your plan on the device periodically (for example, to notice that a trial or licence has ended), and the subscription status only once you have bought or signed in, and to run scheduled timestamping if you turn it on |
+| Alarms | To re-check your plan on the device periodically (for example, to notice that a trial or licence has ended), and to check a subscription licence key with Lemon Squeezy about once a day, only once you have entered one, and to run scheduled timestamping if you turn it on |
 
 ## 6. Retention and deletion
 
 - **You control your data.** It stays on your device until you delete it.
 - You can delete individual captures or whole cases inside EviCap. To keep the chain of custody intact, deleting a capture removes its content but leaves a record in the case's audit log noting that it was deleted, when, its original hash and the reason you gave.
 - **Uninstalling EviCap, or clearing your browser's site and extension data, permanently deletes all data stored inside the browser.** Your disk-mirror folder and exported files are not affected. Because we never hold a copy, **we cannot recover lost data**. Set up the disk mirror, and keep backups of that folder.
-- Billing records held by ExtensionPay and Stripe are kept according to their policies and our legal and tax record-keeping obligations. Invoice records we hold ourselves are kept for as long as UK accounting and tax law requires. To ask us to delete billing information we can access, contact us at info@civildigital.co.uk.
+- Billing records held by Lemon Squeezy are kept according to its policies and our legal and tax record-keeping obligations. Invoice records we hold ourselves are kept for as long as UK accounting and tax law requires. To ask us to delete billing information we can access, contact us at info@civildigital.co.uk.
 
 ## 7. Security
 
@@ -132,7 +132,7 @@ Where the GDPR applies, our legal basis for processing billing information is th
 
 ## 11. International transfers
 
-Evidence data never leaves your device, so it is not transferred anywhere. If you turn on trusted timestamping, only hashes are sent to FreeTSA. Billing information is processed by ExtensionPay and Stripe, which may process it in the United States and other countries under their own safeguards.
+Evidence data never leaves your device, so it is not transferred anywhere. If you turn on trusted timestamping, only hashes are sent to FreeTSA. Billing information is processed by Lemon Squeezy and its payment processors, which may process it in the United States and other countries under their own safeguards.
 
 ## 12. Changes to this policy
 
