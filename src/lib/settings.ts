@@ -5,6 +5,8 @@ export interface Settings {
   autoCaptureThrottleSec: number;
   autoCaptureMaxMhtmlMb: number;
   defaultScreenshotMode: 'visible' | 'full' | 'region';
+  /** Which image source to capture (F6): the largest srcset candidate, or the one displayed. */
+  imageSource: 'largest' | 'displayed';
   /** Global denylist: never logged (F1). */
   denylist: string[];
   timestamping: { enabled: boolean; chainHeadIntervalMin: number };
@@ -47,6 +49,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoCaptureThrottleSec: 5,
   autoCaptureMaxMhtmlMb: 50,
   defaultScreenshotMode: 'visible',
+  imageSource: 'largest',
   denylist: DEFAULT_DENYLIST,
   timestamping: { enabled: false, chainHeadIntervalMin: 15 },
   mirrorReminderDismissed: false,

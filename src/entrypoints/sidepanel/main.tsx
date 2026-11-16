@@ -5,13 +5,15 @@ import { rpc } from '@/lib/messages';
 import { MIRROR_OFF, type MirrorStatus } from '@/lib/mirror-queue';
 import { capturePath } from '@/lib/opfs';
 import type { CaptureRecord } from '@/lib/types';
-import { Banner, CaptureButtons, ErrorText, hostLabel, LocalTime, openDashboard } from '@/ui/components';
+import { Banner, captureLabel, CaptureButtons, ErrorText, groupChildren, hostLabel, LocalTime, openDashboard } from '@/ui/components';
 import { useAction, useLive, useLiveState, useOpfsUrl, useSettings } from '@/ui/hooks';
+import { MediaControls } from '@/ui/MediaControls';
 import { RecordControls } from '@/ui/RecordControls';
 import '@/ui/styles.css';
 
 function Thumb({ c }: { c: CaptureRecord }) {
-  const img = c.files.find((f) => f.role === 'primary' && f.mime.startsWith('image/'));
+  const img =
+    c.files.find((f) => f.role === 'primary' && f.mime.startsWith('image/')) ?? c.files.find((f) => f.role === 'poster');
   const url = useOpfsUrl(img ? capturePath(c.caseId, c.id, img.path) : null);
   return url ? <img className="thumb" src={url} alt="" style={{ maxHeight: 90 }} /> : null;
 }
@@ -68,7 +70,7 @@ function LiveCase({ caseId }: { caseId: string }) {
       {tab === 'captures' && (
         <ul className="list">
           {captures?.length === 0 && <li className="muted">No captures yet.</li>}
-          {captures?.map((cap) => (
+          {captures && groupChildren(captures).map(({ c: cap, children }) => (
             <li key={cap.id}>
               <button
                 type="button"
@@ -78,7 +80,8 @@ function LiveCase({ caseId }: { caseId: string }) {
               >
                 <Thumb c={cap} />
                 <div className="small" style={{ marginTop: 4 }}>
-                  <strong>{String(cap.meta.mode ?? cap.type)}</strong> · <LocalTime utc={cap.startedAtUtc} />
+                  <strong>{captureLabel(cap)}</strong> · <LocalTime utc={cap.startedAtUtc} />
+                  {children > 0 && <span className="muted"> · +{children} related</span>}
                   {cap.status !== 'complete' && <span className="badge warn"> {cap.status}</span>}
                 </div>
                 <div className="small muted truncate">{cap.title || hostLabel(cap.url)}</div>
@@ -158,6 +161,7 @@ function SidePanel() {
       {state?.activeCaseId && (
         <>
           <CaptureButtons disabled={false} />
+          <MediaControls />
           <LiveCase caseId={state.activeCaseId} />
         </>
       )}

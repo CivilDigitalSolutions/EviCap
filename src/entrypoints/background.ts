@@ -21,6 +21,16 @@ import { storageStatus } from '@/lib/opfs';
 import * as recorder from '@/lib/recorder';
 import { takeScreenshot, type ScreenshotMode } from '@/lib/screenshots';
 import { getSettings, getState, saveSettings, type LiveState, type Settings } from '@/lib/settings';
+import { dismissJob, markInterruptedJobs } from '@/lib/jobs';
+import { captureMediaAt, pickAndCapture, type MediaResult } from '@/lib/media';
+import type { TabRecordingEndedMessage } from '@/lib/messages';
+import {
+  finishTabRecording,
+  getTabRecording,
+  noteTabRecordingNavigation,
+  startTabRecording,
+  stopTabRecording,
+} from '@/lib/tab-recording';
 
 export default defineBackground(() => {
   // ---------- Recording: visit log (F2) ----------
@@ -39,6 +49,7 @@ export default defineBackground(() => {
   );
   chrome.webNavigation.onCommitted.addListener((d) => {
     if (d.frameId !== 0) return;
+    void noteTabRecordingNavigation(d.tabId, d.url);
     void recorder.onCommitted({
       tabId: d.tabId,
       url: d.url,
@@ -49,6 +60,7 @@ export default defineBackground(() => {
   });
   const onSpa = (d: chrome.webNavigation.WebNavigationTransitionCallbackDetails) => {
     if (d.frameId !== 0) return;
+    void noteTabRecordingNavigation(d.tabId, d.url);
     void recorder.onCommitted({
       tabId: d.tabId,
       url: d.url,
@@ -98,6 +110,11 @@ export default defineBackground(() => {
 
   // ---------- State: badge and visit closing ----------
   chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'session' && changes.tabRecording) {
+      void updateBadge();
+      void updateRecordTabMenu(!!changes.tabRecording.newValue);
+      return;
+    }
     if (area !== 'local' || !changes.state) return;
     const prev = (changes.state.oldValue ?? {}) as Partial<LiveState>;
     const next = (changes.state.newValue ?? {}) as Partial<LiveState>;
@@ -110,6 +127,12 @@ export default defineBackground(() => {
 
   async function updateBadge(state?: Partial<LiveState>) {
     const s = state ?? (await getState());
+    if (await getTabRecording()) {
+      await chrome.action.setBadgeText({ text: 'REC' });
+      await chrome.action.setBadgeBackgroundColor({ color: '#dc2626' });
+      await chrome.action.setTitle({ title: 'EviCap: recording this tab. Open EviCap to stop.' });
+      return;
+    }
     if (!s.activeCaseId) {
       await chrome.action.setBadgeText({ text: '' });
       await chrome.action.setTitle({ title: 'EviCap: no active case' });
@@ -131,8 +154,9 @@ export default defineBackground(() => {
     creatingOffscreen ??= chrome.offscreen
       .createDocument({
         url: 'offscreen.html',
-        reasons: [chrome.offscreen.Reason.BLOBS],
-        justification: 'Write evidence files to the folder the user chose for the disk mirror, and hash them.',
+        reasons: [chrome.offscreen.Reason.BLOBS, chrome.offscreen.Reason.USER_MEDIA],
+        justification:
+          'Write evidence files to the folder the user chose for the disk mirror and hash them, and record a tab the user asked to record.',
       })
       .finally(() => {
         creatingOffscreen = null;
@@ -160,6 +184,15 @@ export default defineBackground(() => {
       if (command === 'toggle-recording') {
         const s = await getState();
         await setRecording(!s.recording);
+        return;
+      }
+      if (command === 'open-media-picker') {
+        report(await pickMedia(tab?.id));
+        return;
+      }
+      if (command === 'record-tab') {
+        if (await getTabRecording()) await stopTabRecording();
+        else await recordTab(tab?.id);
         return;
       }
       const mode = ({ 'capture-visible': 'visible', 'capture-full': 'full', 'capture-region': 'region' } as const)[
@@ -200,6 +233,101 @@ export default defineBackground(() => {
     return record ? { captureId: record.id } : null;
   }
 
+  // ---------- Media (F6, F7) ----------
+  async function activeCase(): Promise<string> {
+    const state = await getState();
+    if (!state.activeCaseId) throw new Error('Choose or create a case before capturing.');
+    return state.activeCaseId;
+  }
+
+  async function pickMedia(tabId?: number) {
+    const id = await targetTab(tabId);
+    const r = await pickAndCapture({ caseId: await activeCase(), tabId: id, visitId: await recorder.currentVisitId(id) });
+    broadcast({ scope: 'captures' });
+    return r;
+  }
+
+  async function recordTab(tabId?: number) {
+    const id = await targetTab(tabId);
+    const r = await startTabRecording({
+      caseId: await activeCase(),
+      tabId: id,
+      visitId: await recorder.currentVisitId(id),
+      ensureOffscreen,
+    });
+    broadcast({ scope: 'captures' });
+    return r;
+  }
+
+  /** Show the outcome of a capture started without a page open (menu or shortcut) on the badge. */
+  function report(r: MediaResult | null) {
+    if (!r) return;
+    if (r.failed.length) notifyError(new Error(r.failed.map((f) => f.error).join(' · ')));
+    else if (r.needsTabRecording.length && !r.captured.length) notifyError(new Error(r.needsTabRecording[0]!.reason));
+    else if (r.captured.length) flashBadge(`+${r.captured.length}`);
+  }
+
+  function flashBadge(text: string) {
+    void chrome.action.setBadgeText({ text });
+    void chrome.action.setBadgeBackgroundColor({ color: '#16a34a' });
+    setTimeout(() => void updateBadge(), 2500);
+  }
+
+  const MENU = {
+    image: 'evicap-capture-image',
+    video: 'evicap-capture-video',
+    picker: 'evicap-media-picker',
+    element: 'evicap-screenshot-element',
+    recordTab: 'evicap-record-tab',
+  } as const;
+
+  function createMenus() {
+    chrome.contextMenus.removeAll(() => {
+      const pages = ['http://*/*', 'https://*/*', 'file://*/*'];
+      type Ctx = NonNullable<chrome.contextMenus.CreateProperties['contexts']>;
+      const add = (id: string, title: string, contexts: Ctx) =>
+        chrome.contextMenus.create({ id, title, contexts, documentUrlPatterns: pages });
+      add(MENU.image, 'EviCap: Capture image', ['image']);
+      add(MENU.video, 'EviCap: Capture video', ['video', 'audio']);
+      add(MENU.picker, 'EviCap: Pick images and videos…', ['page', 'image', 'video', 'link']);
+      add(MENU.element, 'EviCap: Screenshot an element…', ['page', 'image', 'link']);
+      add(MENU.recordTab, 'EviCap: Record this tab', ['page', 'video']);
+      void getTabRecording().then((s) => updateRecordTabMenu(!!s));
+    });
+  }
+
+  async function updateRecordTabMenu(recording: boolean) {
+    await chrome.contextMenus
+      .update(MENU.recordTab, { title: recording ? 'EviCap: Stop recording the tab' : 'EviCap: Record this tab' })
+      .catch(() => undefined);
+  }
+
+  chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+    try {
+      const tabId = tab?.id;
+      if (tabId === undefined || tabId < 0) return;
+      if (info.menuItemId === MENU.image || info.menuItemId === MENU.video) {
+        if (!info.srcUrl) throw new Error('No media address found for that item.');
+        const r = await captureMediaAt(
+          { caseId: await activeCase(), tabId, frameId: info.frameId, visitId: await recorder.currentVisitId(tabId) },
+          info.srcUrl,
+          info.menuItemId === MENU.image ? 'image' : ((info.mediaType as 'video' | 'audio' | undefined) ?? 'video'),
+        );
+        broadcast({ scope: 'captures' });
+        report(r);
+      } else if (info.menuItemId === MENU.picker) {
+        report(await pickMedia(tabId));
+      } else if (info.menuItemId === MENU.element) {
+        await screenshot('element', tabId);
+      } else if (info.menuItemId === MENU.recordTab) {
+        if (await getTabRecording()) await stopTabRecording();
+        else await recordTab(tabId);
+      }
+    } catch (err) {
+      notifyError(err);
+    }
+  });
+
   // ---------- RPC ----------
   const handlers: { [K in keyof RpcMethods]: (...args: Parameters<RpcMethods[K]>) => Promise<unknown> } = {
     async createCase(input: CaseInput) {
@@ -226,6 +354,24 @@ export default defineBackground(() => {
       await setRecording(on);
     },
     screenshot: (mode, tabId) => screenshot(mode, tabId),
+    pickMedia: (tabId) => pickMedia(tabId),
+    async captureMediaUrl(srcUrl, mediaType, tabId) {
+      const id = await targetTab(tabId);
+      const r = await captureMediaAt(
+        { caseId: await activeCase(), tabId: id, visitId: await recorder.currentVisitId(id) },
+        srcUrl,
+        mediaType,
+      );
+      broadcast({ scope: 'captures' });
+      return r;
+    },
+    startTabRecording: (tabId) => recordTab(tabId),
+    async stopTabRecording() {
+      await stopTabRecording();
+    },
+    async dismissJob(id) {
+      await dismissJob(id);
+    },
     async addNote(caseId, kind, targetId, text) {
       await addNote(caseId, kind, targetId, text);
       broadcast({ scope: 'notes', caseId });
@@ -278,7 +424,14 @@ export default defineBackground(() => {
     },
   };
 
-  chrome.runtime.onMessage.addListener((msg: RpcRequest, _sender, sendResponse) => {
+  chrome.runtime.onMessage.addListener((msg: RpcRequest | TabRecordingEndedMessage, _sender, sendResponse) => {
+    if (msg?.kind === 'tab-recording-ended') {
+      void finishTabRecording(msg.result).then((id) => {
+        broadcast({ scope: 'captures' });
+        if (id) flashBadge('+1');
+      });
+      return false;
+    }
     if (msg?.kind !== 'rpc') return false;
     const handler = handlers[msg.method] as ((...a: unknown[]) => Promise<unknown>) | undefined;
     if (!handler) {
@@ -311,6 +464,7 @@ export default defineBackground(() => {
 
   // ---------- Install and start-up ----------
   chrome.runtime.onInstalled.addListener(async (details) => {
+    createMenus();
     await getInstallKey();
     if (details.reason === 'install') {
       await chrome.tabs.create({ url: chrome.runtime.getURL('/dashboard.html#/onboarding') });
@@ -321,7 +475,14 @@ export default defineBackground(() => {
 
   void (async () => {
     await updateBadge();
-    const n = await markInterruptedCaptures();
+    await markInterruptedJobs();
+    // A tab recording survives a service-worker restart if its recorder is still running.
+    const rec = await getTabRecording();
+    const offscreen = await chrome.runtime.getContexts({ contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT] });
+    if (rec && offscreen.length === 0) {
+      await finishTabRecording({ captureId: rec.captureId, ok: false, error: 'the recorder was closed', reason: 'recorder lost' });
+    }
+    const n = await markInterruptedCaptures(rec && offscreen.length ? [rec.captureId] : []);
     if (n) broadcast({ scope: 'captures' });
     kickMirror();
   })();

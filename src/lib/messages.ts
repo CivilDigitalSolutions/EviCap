@@ -1,6 +1,8 @@
 import type { CaseInput } from './cases';
 import type { StorageStatus } from './opfs';
+import type { MediaResult } from './media';
 import type { ScreenshotMode } from './screenshots';
+import type { TabRecordingResult } from './tab-recording';
 import type { Settings } from './settings';
 import type { CaseStatus, NoteTargetKind } from './types';
 
@@ -16,6 +18,12 @@ export interface RpcMethods {
   setActiveCase(id: string | null): void;
   setRecording(on: boolean): void;
   screenshot(mode: ScreenshotMode, tabId?: number): { captureId: string } | null;
+  pickMedia(tabId?: number): MediaResult | null;
+  /** The right-click path (Capture image / Capture video) for one media address. */
+  captureMediaUrl(srcUrl: string, mediaType: 'image' | 'video' | 'audio', tabId?: number): MediaResult;
+  startTabRecording(tabId?: number): { captureId: string; drm: boolean };
+  stopTabRecording(): void;
+  dismissJob(id: string): void;
   addNote(caseId: string, kind: NoteTargetKind, targetId: string, text: string): void;
   editNote(noteId: string, text: string): void;
   setTag(caseId: string, kind: 'visit' | 'capture', targetId: string, tag: string, add: boolean): void;
@@ -56,8 +64,14 @@ export function broadcast(msg: Omit<ChangedMessage, 'kind'>) {
   chrome.runtime.sendMessage({ kind: 'changed', ...msg } satisfies ChangedMessage).catch(() => undefined);
 }
 
-/** Message from the service worker to the offscreen document. */
-export interface OffscreenMessage {
-  kind: 'offscreen';
-  action: 'drain-mirror';
+/** Messages from the service worker to the offscreen document. */
+export type OffscreenMessage =
+  | { kind: 'offscreen'; action: 'drain-mirror' }
+  | { kind: 'offscreen'; action: 'start-tab-recording'; streamId: string; path: string; captureId: string }
+  | { kind: 'offscreen'; action: 'stop-tab-recording'; captureId: string };
+
+/** From the offscreen document when a tab recording has stopped and its file is closed. */
+export interface TabRecordingEndedMessage {
+  kind: 'tab-recording-ended';
+  result: TabRecordingResult;
 }

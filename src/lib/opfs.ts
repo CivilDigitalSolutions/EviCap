@@ -38,6 +38,45 @@ export async function writeFile(path: string, data: Blob | Uint8Array | ArrayBuf
   }
 }
 
+/**
+ * Write a stream to a file chunk by chunk, calling `onChunk` with each chunk
+ * before it is written (used to hash incrementally). Aborts on error, so a
+ * partial file is not left looking complete.
+ */
+export async function writeStream(
+  path: string,
+  stream: ReadableStream<Uint8Array>,
+  onChunk: (chunk: Uint8Array) => void,
+): Promise<void> {
+  const parts = splitPath(path);
+  const name = parts.pop()!;
+  const dir = await dirFor(parts, true);
+  const handle = await dir.getFileHandle(name, { create: true });
+  const writable = await handle.createWritable();
+  const reader = stream.getReader();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      onChunk(value);
+      await writable.write(value as FileSystemWriteChunkType);
+    }
+    await writable.close();
+  } catch (err) {
+    await writable.abort().catch(() => undefined);
+    await reader.cancel().catch(() => undefined);
+    throw err;
+  }
+}
+
+/** Open a file for appending chunks (tab recordings in the offscreen document). */
+export async function openWritable(path: string): Promise<FileSystemWritableFileStream> {
+  const parts = splitPath(path);
+  const name = parts.pop()!;
+  const dir = await dirFor(parts, true);
+  return (await dir.getFileHandle(name, { create: true })).createWritable();
+}
+
 export async function readFile(path: string): Promise<File> {
   const parts = splitPath(path);
   const name = parts.pop()!;

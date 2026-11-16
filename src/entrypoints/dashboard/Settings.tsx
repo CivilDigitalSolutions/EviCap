@@ -83,10 +83,25 @@ export function SettingsPage() {
       </div>
 
       <div className="card stack">
+        <h2>Images</h2>
+        <label className="field">
+          <span>When a page offers several sizes of an image, capture</span>
+          <select
+            value={settings.imageSource}
+            onChange={(e) => void save({ imageSource: e.target.value as 'largest' | 'displayed' })}
+          >
+            <option value="largest">the largest version (recommended)</option>
+            <option value="displayed">the version shown on screen</option>
+          </select>
+        </label>
+        <p className="small muted">Either way, every version the page offered is listed in the capture's metadata.</p>
+      </div>
+
+      <div className="card stack">
         <h2>Keyboard shortcuts</h2>
         <p>
-          Visible area <kbd>Alt+Shift+S</kbd> · Full page <kbd>Alt+Shift+F</kbd> · Region <kbd>Alt+Shift+R</kbd>. Start or pause
-          recording has no default shortcut.
+          Visible area <kbd>Alt+Shift+S</kbd> · Full page <kbd>Alt+Shift+F</kbd> · Region <kbd>Alt+Shift+R</kbd> · Pick images and videos{' '}
+          <kbd>Alt+Shift+M</kbd>. Start or pause recording, and record this tab, have no default shortcut.
         </p>
         <div>
           <button type="button" onClick={() => chrome.tabs.create({ url: 'chrome://extensions/shortcuts' })}>

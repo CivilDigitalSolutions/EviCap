@@ -57,6 +57,34 @@ export function useSettings(): Settings | undefined {
   return useLive(getSettings, ['state'])[0];
 }
 
+/** A value in chrome.storage.session (tab recording, download jobs), kept current. */
+export function useSessionValue<T>(key: string): T | undefined {
+  const [value, setValue] = useState<T>();
+  useEffect(() => {
+    let live = true;
+    chrome.storage.session.get(key).then((r) => live && setValue(r[key] as T));
+    const onChange = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+      if (area === 'session' && key in changes) setValue(changes[key]!.newValue as T);
+    };
+    chrome.storage.onChanged.addListener(onChange);
+    return () => {
+      live = false;
+      chrome.storage.onChanged.removeListener(onChange);
+    };
+  }, [key]);
+  return value;
+}
+
+/** Re-render every `ms` milliseconds while `on` (for elapsed-time displays). */
+export function useTicker(on: boolean, ms = 1000) {
+  const [, setN] = useState(0);
+  useEffect(() => {
+    if (!on) return;
+    const t = setInterval(() => setN((n) => n + 1), ms);
+    return () => clearInterval(t);
+  }, [on, ms]);
+}
+
 /** Run an async action, tracking busy state and the last error message. */
 export function useAction() {
   const [busy, setBusy] = useState(false);

@@ -221,9 +221,9 @@ A manual, one-click capture that records everything about the current page. It u
 - **"Capture all images on page"** (P1), with a minimum-size filter.
 
 **Process for each image:**
-1. Pick the best source: `currentSrc`, the largest `srcset` candidate, or `data-src`/lazy-load attributes (configurable).
+1. Pick the best source: `currentSrc`, the largest `srcset` candidate, or `data-src`/lazy-load attributes (configurable in Settings → Images: the largest version, the default, or the one displayed). Every candidate the page offered is recorded in the metadata.
 2. Get the **original bytes** rather than the re-encoded pixels, trying in order:
-   1. the network response body from the debugger, if a forensic session is active
+   1. the network response body from the debugger, if a forensic session is active (from M3)
    2. `fetch()` from the extension with host permission, credentials included where the browser allows
    3. `fetch()` from the content script in the page's own context (same-origin or CORS-allowed)
    4. last resort: draw to canvas and export PNG, marked *"re-encoded: original bytes unavailable"*
@@ -239,12 +239,13 @@ Many sites stream video rather than serving a single file, so EviCap supports th
 |---|---|---|
 | **A. Direct file** | `<video>` `currentSrc` is a normal `http(s)` URL (mp4/webm/mov) | Stream download into OPFS with **incremental SHA-256** while writing. Supports resume via `Range` requests. Shows progress. |
 | **B. Stream manifest** (P1) | HLS (`.m3u8`) or DASH (`.mpd`) seen in network traffic, not encrypted | Download the manifest and all segments of the chosen rendition, hash every segment and the manifest, then store them and also remux to one MP4 (derived artefact). Originals are kept. |
-| **C. Tab recording** | `blob:`/MediaSource streams, encrypted media, or anything else | `chrome.tabCapture.getMediaStreamId` feeds an offscreen `MediaRecorder` (WebM, VP9/Opus, tab audio included). The user starts and stops it from an overlay. Hashing runs incrementally on chunks, and the final file hash is recorded at stop. The manifest records start/stop UTC times, the visited URL(s) during recording, and the visible-tab size. |
+| **C. Tab recording** | `blob:`/MediaSource streams, encrypted media, or anything else | `chrome.tabCapture.getMediaStreamId` feeds an offscreen `MediaRecorder` (WebM, VP9/Opus, tab audio included). The user starts and stops it from the popup, the side panel, the right-click menu or a shortcut; the toolbar badge shows **REC** while it runs. There is deliberately no in-page overlay, because it would appear in the evidence video. The browser only allows recording a tab the user has just invoked EviCap on (toolbar button, menu or shortcut). Hashing runs incrementally on chunks in the offscreen document, and the final file hash is recorded at stop; the service worker then re-hashes the stored file and the two must match. The manifest records start/stop UTC times, the visited URL(s) during recording, and the visible-tab size. |
 
 - **Entry points:** right-click a video, then **"EviCap: Capture video"**; the media picker (F6); or **"Record this tab"** in the popup or side panel.
 - **Poster/thumbnail and metadata:** duration, dimensions, `currentTime`, captions/track URLs (also downloaded and hashed).
 - **DRM:** if the media is EME-encrypted, Method C recording will show black frames. EviCap detects EME (`MediaKeys` on the element), warns the user, and records that the content is DRM-protected.
 - **Large files:** no fixed limit beyond storage quota. A warning appears above 2 GB.
+- **Interruptions:** a direct download that drops is resumed with `Range` (up to three times, each offset recorded); one that fails is logged as `capture.incomplete` with the reason. A tab recording is written to storage as it runs but only finalised when it stops, so if the browser itself closes mid-recording, that recording is lost and logged as incomplete.
 
 ### F8 — Notes, tags and selectors (P0 notes and tags; P1 selectors)
 
@@ -494,8 +495,8 @@ The extension may make network requests only of these kinds:
 **Hard rules:**
 - No analytics, telemetry, crash reporting, remote config, remote code, ad SDKs, font/CDN loads, update pings or uninstall URLs. All code and assets are bundled (also required by MV3).
 - No other third-party services, including backup or sync.
-- The extension-page CSP sets `connect-src 'self' https://extensionpay.com https://freetsa.org`. Fetches to captured sites run in the service worker or offscreen document, which have host permissions.
-- A CI test lints for any `fetch`/`XMLHttpRequest`/`WebSocket`/`sendBeacon` call outside an allow-listed network module.
+- The extension-page CSP sets `connect-src 'self' https: http:`. It cannot be narrower, because the service worker re-fetches originals from whichever site the user is capturing (row 3), and the extension CSP also governs the service worker. The narrow list is enforced in code instead: `src/lib/net.ts` is the only module in the extension's own contexts that requests site content, and the in-page media script (which runs as the page) is the only other place a request is made.
+- A unit test (`tests/media.test.ts`) fails on any `fetch`/`XMLHttpRequest`/`WebSocket`/`sendBeacon`/`EventSource` use outside those two modules. ExtensionPay and FreeTSA calls will be added to the allow-list as their own modules.
 - An E2E test runs the extension through a recording proxy and fails on any request to a host not on the list above.
 
 ## 11. Security and data protection

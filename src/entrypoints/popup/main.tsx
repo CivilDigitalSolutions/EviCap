@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import { CaptureButtons, openDashboard } from '@/ui/components';
 import { useLiveState } from '@/ui/hooks';
+import { MediaControls } from '@/ui/MediaControls';
 import { RecordControls } from '@/ui/RecordControls';
 import '@/ui/styles.css';
 
@@ -19,6 +20,7 @@ function Popup() {
         <section className="stack">
           <h3 style={{ margin: 0 }}>Capture</h3>
           <CaptureButtons disabled={!state.activeCaseId} onBeforeInteractive={() => window.close()} />
+          <MediaControls onBeforeInteractive={() => window.close()} />
         </section>
       )}
       <button

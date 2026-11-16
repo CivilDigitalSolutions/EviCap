@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { rpc } from '@/lib/messages';
 import type { ScreenshotMode } from '@/lib/screenshots';
-import type { CaseRecord } from '@/lib/types';
+import type { CaptureRecord, CaseRecord } from '@/lib/types';
 import { useAction } from './hooks';
 
 export function LocalTime({ utc, withSeconds = true }: { utc: string | null | undefined; withSeconds?: boolean }) {
@@ -201,4 +201,23 @@ export function hostLabel(url: string) {
   } catch {
     return url;
   }
+}
+
+/** Short label for a capture in lists. */
+export function captureLabel(c: CaptureRecord): string {
+  if (c.type === 'screenshot') {
+    const mode = String(c.meta.mode ?? 'screenshot');
+    return mode === 'context' ? 'in-context screenshot' : mode === 'full' ? 'full page' : mode;
+  }
+  if (c.type === 'video') return c.method.startsWith('tabCapture') ? 'tab recording' : String(c.meta.kind ?? 'video');
+  if (c.type === 'image') return c.meta.kind === 'background' ? 'background image' : 'image';
+  return c.type;
+}
+
+/** Hide child artefacts (such as in-context screenshots) whose parent is also listed; count them on the parent. */
+export function groupChildren(list: CaptureRecord[]): { c: CaptureRecord; children: number }[] {
+  const ids = new Set(list.map((c) => c.id));
+  const counts = new Map<string, number>();
+  for (const c of list) if (c.parent && ids.has(c.parent)) counts.set(c.parent, (counts.get(c.parent) ?? 0) + 1);
+  return list.filter((c) => !(c.parent && ids.has(c.parent))).map((c) => ({ c, children: counts.get(c.id) ?? 0 }));
 }

@@ -325,6 +325,14 @@ table.data th {
   display: block;
 }
 
+.thumb.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .grid-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));

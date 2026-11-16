@@ -4,7 +4,7 @@ import { getCase, listAudit, listCaptures, listNotes, listVisits } from '@/lib/d
 import { rpc } from '@/lib/messages';
 import { capturePath } from '@/lib/opfs';
 import type { CaptureRecord, CaseRecord, VisitRecord } from '@/lib/types';
-import { Banner, ErrorText, Hash, hostLabel, LocalTime, Tags } from '@/ui/components';
+import { Banner, captureLabel, ErrorText, groupChildren, Hash, hostLabel, LocalTime, Tags } from '@/ui/components';
 import { useAction, useLive, useLiveState, useOpfsUrl } from '@/ui/hooks';
 import { CaseForm } from './Cases';
 import { go } from './nav';
@@ -179,7 +179,7 @@ function Timeline({ caseId }: { caseId: string }) {
         ) : (
           <div className="timeline-item" key={'c' + it.c!.id}>
             <LocalTime utc={it.at} />
-            <span className="badge ok">{String(it.c!.meta.mode ?? it.c!.type)}</span>
+            <span className="badge ok">{captureLabel(it.c!)}</span>
             <a className="truncate" href={`#/case/${caseId}/capture/${it.c!.id}`}>
               {it.c!.title || hostLabel(it.c!.url)}
             </a>
@@ -261,14 +261,22 @@ function Visits({ caseId }: { caseId: string }) {
   );
 }
 
-function CaptureCard({ c }: { c: CaptureRecord }) {
-  const img = c.files.find((f) => f.role === 'primary' && f.mime.startsWith('image/'));
+function CaptureCard({ c, children = 0 }: { c: CaptureRecord; children?: number }) {
+  const img =
+    c.files.find((f) => f.role === 'primary' && f.mime.startsWith('image/')) ?? c.files.find((f) => f.role === 'poster');
   const url = useOpfsUrl(img ? capturePath(c.caseId, c.id, img.path) : null);
   return (
     <a href={`#/case/${c.caseId}/capture/${c.id}`} className="card" style={{ color: 'inherit', textDecoration: 'none', padding: 10 }}>
-      {url ? <img className="thumb" src={url} alt="" /> : <div className="thumb" style={{ height: 120 }} />}
+      {url ? (
+        <img className="thumb" src={url} alt="" />
+      ) : (
+        <div className="thumb placeholder" style={{ height: 120 }}>
+          {c.type === 'video' ? '▶ video' : ''}
+        </div>
+      )}
       <div className="small" style={{ marginTop: 6 }}>
-        <strong>{String(c.meta.mode ?? c.type)}</strong> · <LocalTime utc={c.startedAtUtc} />
+        <strong>{captureLabel(c)}</strong> · <LocalTime utc={c.startedAtUtc} />
+        {children > 0 && <span className="muted"> · +{children} related</span>}
       </div>
       <div className="small muted truncate">{c.title || hostLabel(c.url)}</div>
       {c.status !== 'complete' && <span className="badge warn">{c.status}</span>}
@@ -280,11 +288,11 @@ function CaptureCard({ c }: { c: CaptureRecord }) {
 function Captures({ caseId }: { caseId: string }) {
   const [captures] = useLive(() => listCaptures(caseId), ['captures'], [caseId]);
   if (!captures) return null;
-  if (captures.length === 0) return <div className="card muted">No captures yet. Use the toolbar button or a keyboard shortcut.</div>;
+  if (captures.length === 0) return <div className="card muted">No captures yet. Use the toolbar button, a keyboard shortcut or right-click an image or video.</div>;
   return (
     <div className="grid-cards">
-      {captures.map((c) => (
-        <CaptureCard key={c.id} c={c} />
+      {groupChildren(captures).map(({ c, children }) => (
+        <CaptureCard key={c.id} c={c} children={children} />
       ))}
     </div>
   );

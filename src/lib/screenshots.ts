@@ -36,7 +36,7 @@ function dataUrlToBytes(dataUrl: string): Uint8Array {
 
 let lastVisibleCapture = 0;
 /** Chrome allows about two captureVisibleTab calls per second. */
-async function captureVisiblePng(windowId: number): Promise<Uint8Array> {
+export async function captureVisiblePng(windowId: number): Promise<Uint8Array> {
   const wait = 600 - (Date.now() - lastVisibleCapture);
   if (wait > 0) await sleep(wait);
   lastVisibleCapture = Date.now();
@@ -44,7 +44,7 @@ async function captureVisiblePng(windowId: number): Promise<Uint8Array> {
   return dataUrlToBytes(url);
 }
 
-async function cropPng(png: Uint8Array, rect: Rect, scale: number): Promise<Uint8Array> {
+export async function cropPng(png: Uint8Array, rect: Rect, scale: number): Promise<Uint8Array> {
   const bitmap = await createImageBitmap(new Blob([png as BlobPart], { type: 'image/png' }));
   const sx = Math.max(0, Math.round(rect.x * scale));
   const sy = Math.max(0, Math.round(rect.y * scale));

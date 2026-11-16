@@ -7,9 +7,10 @@ import { rpc } from '@/lib/messages';
 import { capturePath, readFile } from '@/lib/opfs';
 import type { CaptureRecord } from '@/lib/types';
 import { formatBytes } from '@/lib/util';
-import { Banner, Hash, LocalTime, Tags } from '@/ui/components';
+import { Banner, captureLabel, Hash, LocalTime, Tags } from '@/ui/components';
 import { useLive, useOpfsUrl } from '@/ui/hooks';
 import { NoteList } from './CaseView';
+import { ExifCard, MediaPreview, RelatedCard, SourceCard } from './MediaCards';
 
 interface Integrity {
   files: Record<string, 'ok' | 'mismatch' | 'missing'>;
@@ -97,20 +98,14 @@ export function CaptureView({ caseId, captureId }: { caseId: string; captureId: 
         ))}
       <div className="two-col">
         <div className="card">
-          {url && primary?.mime.startsWith('image/') ? (
-            <a href={url} target="_blank" rel="noreferrer" title="Open full size">
-              <img className="viewer-img" src={url} alt={`Capture of ${c.url}`} />
-            </a>
-          ) : (
-            <p className="muted">No preview.</p>
-          )}
+          <MediaPreview c={c} primary={primary} url={url} />
         </div>
         <div className="stack">
           <div className="card">
             <h2>Details</h2>
             <dl className="kv">
               <dt>Type</dt>
-              <dd>{String(meta.mode ?? c.type)}</dd>
+              <dd>{captureLabel(c)}</dd>
               <dt>Method</dt>
               <dd className="mono">{c.method}</dd>
               <dt>Started</dt>
@@ -144,6 +139,9 @@ export function CaptureView({ caseId, captureId }: { caseId: string; captureId: 
               </dd>
             </dl>
           </div>
+          <RelatedCard c={c} />
+          <SourceCard c={c} />
+          <ExifCard c={c} primary={primary} />
           <div className="card">
             <h2>Tags</h2>
             <Tags
@@ -186,7 +184,7 @@ export function CaptureView({ caseId, captureId }: { caseId: string; captureId: 
         <NoteList caseId={caseId} targetKind="capture" targetId={c.id} />
       </div>
       <details className="card">
-        <summary>Page metadata</summary>
+        <summary>All capture metadata</summary>
         <pre className="mono small" style={{ whiteSpace: 'pre-wrap' }}>
           {JSON.stringify(c.meta, null, 2)}
         </pre>

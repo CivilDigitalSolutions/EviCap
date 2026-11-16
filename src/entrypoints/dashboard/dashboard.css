@@ -39,6 +39,24 @@
   border-radius: 6px;
   background: repeating-conic-gradient(var(--surface-2) 0 25%, var(--surface) 0 50%) 0 0 / 16px 16px;
 }
+.viewer-video {
+  width: 100%;
+  max-height: 70vh;
+  border-radius: 6px;
+  background: #000;
+}
+.viewer-frame {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+.viewer-frame .mark {
+  position: absolute;
+  border: 3px solid #dc2626;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.25);
+  border-radius: 3px;
+  pointer-events: none;
+}
 .two-col {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
