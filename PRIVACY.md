@@ -22,7 +22,7 @@ When you use EviCap, the extension creates and stores the following **locally, o
 | **Keyword matches** | Words or patterns you add to a case's watch list and where they appeared | While recording, if you use this feature |
 | **Integrity records** | Cryptographic hashes (SHA-256) of everything captured, a hash-chained audit log of actions, digital signatures, a signing key created on your device, and timestamp tokens if you turn on trusted timestamping | Automatically with every capture and action |
 | **Technical environment** | Extension version, browser and version, operating system, screen and window size, timezone and system clock time | Recorded with each capture so the evidence can be documented |
-| **Settings** | Your preferences, denylist, shortcuts and cached subscription status | When you change settings or your subscription is checked |
+| **Settings** | Your preferences, denylist, shortcuts, cached subscription status and any licence key you enter | When you change settings or your subscription is checked |
 
 **Where it is stored:** in your browser's local extension storage (IndexedDB, the Origin Private File System and `chrome.storage.local`) on your device. You can also choose a folder on your computer (the "disk mirror"). EviCap then saves a copy of each case there as ordinary files, so your evidence is not lost if the extension is uninstalled or your browser data is cleared. EviCap never uploads that folder. If the folder is synced to a cloud service such as OneDrive, Dropbox, Google Drive or iCloud Drive, that service will upload the files, so choose a folder that isn't synced if you want your evidence to stay on your device. Files you export are saved wherever you choose.
 
@@ -43,6 +43,8 @@ Paid features are sold through **ExtensionPay** (extensionpay.com), which uses *
 - we, as the seller, can see the information ExtensionPay and Stripe make available to sellers, such as your email address, plan, payment and subscription history, and billing country. We use it only to provide, support and account for your subscription, and to meet legal and tax obligations.
 
 **No case data, browsing logs, captures or files are ever sent as part of billing.**
+
+**Paying by invoice.** If your organisation buys EviCap from Civil Digital by invoice or purchase order, we hold the details needed to invoice you and set up your users: your organisation's name, billing contact details, the email addresses of licensed users, and payment records. We send each user a licence key to enter in EviCap. The key contains the user's email address, organisation name and licence dates. EviCap checks it on your device without contacting us or anyone else.
 
 ExtensionPay's and Stripe's handling of your information is governed by their own privacy policies:
 - ExtensionPay: https://extensionpay.com
@@ -94,7 +96,7 @@ EviCap's use of information received from browser APIs complies with the [Chrome
 - **You control your data.** It stays on your device until you delete it.
 - You can delete individual captures or whole cases inside EviCap. To keep the chain of custody intact, deleting a capture removes its content but leaves a record in the case's audit log noting that it was deleted, when, its original hash and the reason you gave.
 - **Uninstalling EviCap, or clearing your browser's site and extension data, permanently deletes all data stored inside the browser.** Your disk-mirror folder and exported files are not affected. Because we never hold a copy, **we cannot recover lost data**. Set up the disk mirror, and keep backups of that folder.
-- Billing records held by ExtensionPay and Stripe are kept according to their policies and our legal and tax record-keeping obligations. To ask us to delete billing information we can access, contact us at info@civildigital.co.uk.
+- Billing records held by ExtensionPay and Stripe are kept according to their policies and our legal and tax record-keeping obligations. Invoice records we hold ourselves are kept for as long as UK accounting and tax law requires. To ask us to delete billing information we can access, contact us at info@civildigital.co.uk.
 
 ## 7. Security
 

@@ -465,7 +465,18 @@ Check ExtensionPay's current fees and terms before launch. If a merchant of reco
 Because there is no server, paywall checks run in the client and a determined user could bypass them. That is accepted for v1. Paid value that can be enforced server-side, such as cloud signing or sync, would need a backend, which is deliberately out of scope for the local-only v1.
 
 ### 9.5 What billing transmits
-Only ExtensionPay/Stripe traffic: the user's email address, payment details (entered on Stripe/ExtensionPay pages, never seen by the extension), plan and subscription status, and an ExtensionPay user identifier. **No case data, visit history or captures.** Free users who never start a trial, buy or sign in send nothing to ExtensionPay. This is reflected in `PRIVACY.md`.
+Only ExtensionPay/Stripe traffic: the user's email address, payment details (entered on Stripe/ExtensionPay pages, never seen by the extension), plan and subscription status, and an ExtensionPay user identifier. **No case data, visit history or captures.** Free users who never start a trial, buy or sign in send nothing to ExtensionPay. Invoice licences (§9.6) send nothing at all. This is reflected in `PRIVACY.md`.
+
+### 9.6 Invoice licences (organisations)
+Organisations can pay Civil Digital by invoice or purchase order instead of by card. Civil Digital then sets up their users.
+
+- **Licence key:** Civil Digital issues each user a signed licence key. It is the RFC 8785 canonical JSON of `{schema: "evicap.licence/1", licenceId, org, email, plan: "pro", issuedAtUtc, expiresAtUtc}`, signed with Civil Digital's ECDSA P-256 licence-signing key and encoded as text the user can paste. The matching public key is bundled in the extension.
+- **Activation:** the user pastes the key into Settings → Licence. EviCap checks the signature and expiry on the device. **No network request is made**, so this route sends nothing off the device, not even billing traffic.
+- **Either route unlocks Pro:** a valid licence key or an active ExtensionPay subscription. The licence screen shows which one is in use.
+- **Expiry:** keys are issued for 12 months. EviCap shows a renewal reminder 30 days before expiry. After expiry, the same rules as a lapsed subscription apply: Pro features switch off, and existing data is never locked (principle 5).
+- **Issuing:** Civil Digital runs a small offline script (`tools/issue-licence`, in this repo) to sign keys. The private key never ships in the extension. Keep it offline and backed up; if it leaks, anyone can make keys, and the bundled public key must be replaced in an update.
+- **Limits:** without a server, EviCap can't check a key against other installs or revoke it early. Issue one key per user, so a shared key can be traced to its licence, and rely on the 12-month expiry instead of revocation (as accepted in §9.4).
+- **Audit:** activating, replacing or expiring a key writes a `licence.changed` event.
 
 ## 10. Network rules (no outbound data except billing and opt-in timestamps)
 
@@ -552,7 +563,7 @@ Chrome on Android has no extension support, and Safari on iOS lacks `webRequest`
 | **M2 — Media** | F6, F7-A, F7-C, media picker |
 | **M3 — Forensic & auto capture** | F3, F4 (WACZ), replay viewer |
 | **M4 — Export & verify** | F10, F11, report HTML/PDF |
-| **M5 — Billing & launch** | ExtensionPay, plan gating, onboarding, store listing, privacy policy hosting |
+| **M5 — Billing & launch** | ExtensionPay, invoice licence keys and the issuing script, plan gating, onboarding, store listing, privacy policy hosting |
 | **v1.x** | F7-B (HLS/DASH), selectors, search, annotations, trusted timestamps (FreeTSA), case encryption, Firefox build, social-media capture recipes (auto-expand comments, timeline scroll) |
 | **v2** | Mobile app, zkTLS research. Anything else that sends data off the device (team sync, server-side signing) needs a change to the network rules (§10) first. |
 
@@ -569,7 +580,8 @@ Chrome on Android has no extension support, and Safari on iOS lacks `webRequest`
 | D8 | **Hashing:** SHA-256 only. No MD5 or SHA-1 (§7.1). |
 | D9 | **Trusted timestamping** is a Pro feature, off by default (§9.3). |
 | D10 | **Pricing:** Pro is £4 per user per month or £40 per year. Free/Pro split as in §9.3. |
+| D11 | **Invoice payments:** organisations can pay Civil Digital by invoice, and Civil Digital sets up their users with offline licence keys (§9.6). |
 
 ## 18. Open questions
-1. **Agency purchasing:** police and legal teams often pay by purchase order and invoice, not card. Check whether ExtensionPay lets a user be marked as paid manually (for example after a Stripe invoice), and decide on volume discounts.
+1. **Volume discounts** for organisations buying by invoice: offer any, and from how many users?
 2. **Fees:** check ExtensionPay's current fees. At £4 a month, fixed per-payment card fees take a larger share than on the annual plan.
