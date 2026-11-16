@@ -1,0 +1,9 @@
+node_modules/
+.output/
+.wxt/
+stats.html
+*.log
+.DS_Store
+# Licence-signing private keys must never be committed
+tools/keys/
+*.private.jwk

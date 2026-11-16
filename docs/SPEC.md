@@ -334,11 +334,11 @@ Each capture has a manifest:
   "environment": { "extension": "1.0.0", "browser": "Chrome 142…", "os": "…", "tz": "Europe/London" },
   "files": [ { "path": "page.wacz", "bytes": 123456, "sha256": "…" } ],
   "parent": null,                       // for derived artefacts
-  "auditEventHash": "sha256:…"
+  "meta": { }                           // viewport, scroll, region, page metadata…
 }
 ```
 
-The **capture hash** is the SHA-256 of the RFC 8785 canonical JSON of this manifest.
+The **capture hash** is the SHA-256 of the RFC 8785 canonical JSON of this manifest. The manifest can't contain the hash of the audit event that records it, because that event includes the capture hash, so the link is stored on the capture record (`auditEventHash`) and in the event's payload.
 
 ### 7.3 Signing
 - **Key:** on install, EviCap generates an ECDSA P-256 key pair with WebCrypto. The private key is **non-extractable** and stored in IndexedDB as a `CryptoKey`.
@@ -357,9 +357,10 @@ The **capture hash** is the SHA-256 of the RFC 8785 canonical JSON of this manif
 
   where `hash = SHA-256(JCS({seq, caseId, type, atUtc, payloadHash, prevHash}))`.
 - **Event types include:**
-  - `case.created`, `case.updated`, `case.closed`
+  - `case.created`, `case.updated`, `case.closed`, `case.reopened`
   - `recording.started`, `recording.paused`
-  - `visit.recorded`, `capture.created`, `artefact.derived`
+  - `visit.recorded`, `visit.closed` (seals the final title, referrer and time in focus)
+  - `capture.created`, `capture.incomplete`, `artefact.derived`, `clock.anomaly`
   - `note.created`, `note.edited`, `tag.added`, `tag.removed`, `selector.hit`
   - `export.created`, `verify.run`, `settings.changed`
   - `timestamp.obtained`, `timestamp.failed`
@@ -582,6 +583,7 @@ Chrome on Android has no extension support, and Safari on iOS lacks `webRequest`
 | D10 | **Pricing:** Pro is £4 per user per month or £40 per year. Free/Pro split as in §9.3. |
 | D11 | **Invoice payments:** organisations can pay Civil Digital by invoice, and Civil Digital sets up their users with offline licence keys (§9.6). |
 
+| D12 | **No volume discounts.** Invoiced organisations pay the same per-user price. |
+
 ## 18. Open questions
-1. **Volume discounts** for organisations buying by invoice: offer any, and from how many users?
-2. **Fees:** check ExtensionPay's current fees. At £4 a month, fixed per-payment card fees take a larger share than on the annual plan.
+1. **Fees:** check ExtensionPay's current fees. At £4 a month, fixed per-payment card fees take a larger share than on the annual plan.
