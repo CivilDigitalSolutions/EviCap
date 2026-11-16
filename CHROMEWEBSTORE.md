@@ -14,37 +14,131 @@ EviCap
 
 Capture and preserve web evidence for investigations.
 
-**Detailed description** (plain text; the store strips Markdown)
+**Detailed description** (plain text, 8154 of 16,000 characters; the store strips Markdown). The same text is in `store/description.txt` for copying.
 
 ```
-EviCap records the web pages you visit during an investigation and saves them as evidence you can rely on, with a hash, a signature and an audit trail for every item.
+EviCap turns your browser into an evidence recorder. It logs the web pages you visit during an investigation and saves what you see as evidence you can stand behind: every file is hashed the moment it is captured, every capture is signed, and every action goes into a tamper-evident audit log. When you are done, export the case with a PDF report and an offline verifier that anyone can use to check that nothing has changed.
 
-WHAT IT DOES
-Keeps a case-by-case log of every page you visit while recording, with the time, title, address and any redirects.
-Saves pages automatically as you browse, so nothing you saw is lost.
-Takes screenshots of the visible area, the full page or a region you draw.
-Makes forensic captures: a complete archive of the page (WACZ), a full-page screenshot, and the network and certificate details.
-Captures images and videos from a page, including several at once, and records a tab as video when a stream can't be saved directly.
-Lets you add notes and tags to pages and captures.
-Exports a case, or selected exhibits, as a ZIP with a PDF report, an exhibit index, the full audit log and an offline verifier anyone can open.
+Made for anyone who has to show what was on a website and when: trading standards and consumer protection officers, police and fraud investigators, open-source (OSINT) researchers, compliance and HR investigators, solicitors and paralegals, and journalists.
 
-WHY IT HOLDS UP
-Every file gets a SHA-256 hash the moment it is saved. Each capture's list of files is signed with a key created on your computer. Every action in a case goes into an audit log in which each entry includes the hash of the one before, so a gap or an edit shows. The verifier in each export checks all of this offline, in any browser.
+━━━━━━━━━━━━━━━━━━━━
+HOW IT WORKS
+━━━━━━━━━━━━━━━━━━━━
 
-HOW TO USE IT
-1. Create a case and give it a reference.
-2. Press Start recording and browse as normal. EviCap logs each page and saves it.
-3. Take screenshots or forensic captures of the pages that matter, and add notes.
-4. Open the dashboard to review the case, then export it for disclosure or a statement.
+1. Create a case and give it a name, a reference and the investigator's details.
+2. Press Start recording and browse as you normally would. EviCap logs each page and, if you choose, saves a copy of it automatically.
+3. Take screenshots and forensic captures of the pages that matter, and add notes and tags as you go.
+4. Open the dashboard to review the timeline, the visit log, your captures and the audit log.
+5. Export the case, or just the exhibits you need, as a ZIP ready for disclosure or to attach to a statement.
 
+━━━━━━━━━━━━━━━━━━━━
+A RECORD OF EVERY PAGE YOU VISIT
+━━━━━━━━━━━━━━━━━━━━
+
+While a case is recording, EviCap keeps a visit log with:
+• the date and time of each visit, in UTC with your local offset
+• the page title and full address
+• how you got there: a link, a typed address, a reload, or back and forward
+• any redirects on the way, so you can show how you reached a page
+• how long the page was in focus
+• changes of address inside single-page sites
+
+You decide what is recorded. Each case can record every site, or only the domains you list. Banking, health and email sites are never logged, and you can add your own sites to that list. Private (incognito) windows are recorded only if you turn that on for the case.
+
+━━━━━━━━━━━━━━━━━━━━
+CAPTURE WHAT YOU SEE
+━━━━━━━━━━━━━━━━━━━━
+
+• Automatic capture: saves a copy of each page as you browse, so nothing you saw is lost even if the site changes later.
+• Screenshots: the visible area, the full length of the page, a region you draw, or a single element you click.
+• Forensic capture: a complete record of the page in one step. It includes a Web Archive (WACZ) file that opens in standard archive viewers such as ReplayWeb.page, a full-page screenshot, the page as a single file (MHTML), the page's HTML, the network responses and the site's security certificate. Reload and capture records the page again from scratch with full network detail.
+• Images and video: save the original copy of an image or video, straight from the site that hosts it.
+• Media picker (Pro): pick several images and videos on a page and save them together.
+• Tab recording (Pro): record the tab as video with its sound, for streamed or protected video that can't be saved as a file.
+
+Every capture can be opened and checked from the dashboard, with its hashes, its signature and the audit entry that recorded it.
+
+Capture from wherever is quickest: the toolbar button, the side panel, the right-click menu, or keyboard shortcuts (Alt+Shift+S for the visible area, Alt+Shift+F for the full page, Alt+Shift+R for a region, Alt+Shift+M for the media picker).
+
+━━━━━━━━━━━━━━━━━━━━
+NOTES, TAGS AND A TIMELINE
+━━━━━━━━━━━━━━━━━━━━
+
+Add notes to the case, to any visit or to any capture, and tag the ones that matter, for example "key" or "test purchase". Notes are part of the record: each one goes into the audit log, and if you edit a note, the log keeps what it said before. The timeline shows visits, captures and notes in order, and the side panel shows the live log of the case while you work.
+
+━━━━━━━━━━━━━━━━━━━━
+WHY THE EVIDENCE HOLDS UP
+━━━━━━━━━━━━━━━━━━━━
+
+• Hashing: every file gets a SHA-256 hash the moment it is saved.
+• Signing: each capture's list of files and hashes is signed with an ECDSA P-256 key created on your computer. The key's fingerprint is printed in every report, so you can quote it in your statement.
+• Audit log: every action in a case is written to a log in which each entry contains the hash of the one before it. A missing, reordered or edited entry breaks the chain and shows up.
+• Context: each capture records the browser, operating system, time zone, screen size and the time source used.
+• Honest limits: the report says plainly what the checks prove (the files are unchanged since EviCap saved them, and the log is complete) and what they don't prove on their own (who was at the computer, or whether its clock was right).
+
+━━━━━━━━━━━━━━━━━━━━
+EXPORT AND VERIFY
+━━━━━━━━━━━━━━━━━━━━
+
+Export a whole case as one ZIP containing:
+• a PDF report, and the same report as a web page, with the case details, an integrity summary, an exhibit index with thumbnails, the notes and an audit summary
+• every capture, numbered as exhibits (EV-001, EV-002 and so on)
+• the visit log as a spreadsheet (CSV) and as JSON
+• the complete audit log
+• a signed list of every file, and the public key
+• verify.html, an offline verifier
+
+Anyone can open verify.html in a modern browser, choose the ZIP, and check every hash, every signature and the whole audit chain. It works without an internet connection, uploads nothing and doesn't need EviCap installed, so you can hand it to a colleague, a lawyer or a court along with the evidence. You can also check an export, or the live case, from the dashboard, and each check is itself recorded in the audit log.
+
+Selected exhibits (Pro): export only the exhibits you choose. Audit entries about unrelated pages are left out, and the verifier still confirms that the chain is intact and says how many entries were left out.
+
+Branded reports (Pro): put your organisation's name, logo and colour on the report, and a protective marking such as OFFICIAL-SENSITIVE at the top and bottom of every PDF page. Branding changes only how the report looks. The integrity sections always stay, and the report always says it was made by EviCap.
+
+━━━━━━━━━━━━━━━━━━━━
 YOUR DATA STAYS ON YOUR COMPUTER
-Cases, logs and captures are stored only in your browser, and optionally in a folder you choose. EviCap has no account and no analytics, and Civil Digital cannot see your evidence. Common banking, health and email sites are never logged, and you can add your own.
+━━━━━━━━━━━━━━━━━━━━
 
+Cases, logs and captures are stored only in your browser on your own computer. There is no account to create, no analytics and no tracking, and Civil Digital cannot see, collect or recover your evidence.
+
+Optional disk mirror: keep a copy of every case as ordinary files in a folder you choose, so your evidence survives uninstalling the extension or clearing browser data.
+
+EviCap connects to something other than the sites you visit only when:
+• you capture an image or video, when it downloads the original from the site that hosts it
+• you have entered a subscription licence key, which it renews with Civil Digital's licence service about once a day
+
+━━━━━━━━━━━━━━━━━━━━
 FREE AND PRO
-The free plan includes 2 open cases at a time, 10 forensic captures a month and up to 100 automatic captures per case, with hashing, signing, export and verification always included. EviCap Pro (£4 a month or £40 a year) removes the limits and adds the multi-select media picker, tab recording, exhibit-only export and branded reports with your organisation's name, logo and protective marking. Try Pro free for 14 days; the trial needs no sign-up. Organisations can also buy by invoice.
+━━━━━━━━━━━━━━━━━━━━
 
+Free:
+• 2 open cases at a time
+• up to 100 automatic captures per case
+• 10 forensic captures a month
+• screenshots, single image and video capture, notes and tags
+• hashing, signing, the audit log, export with the PDF report, and verification, always
+
+EviCap Pro, £4 a month or £40 a year:
+• no limits on cases or captures
+• the media picker, for several images and videos at once
+• tab recording
+• exporting selected exhibits
+• branded reports
+
+Try Pro free for 14 days from Settings. The trial needs no sign-up and no card. Organisations can buy licences by invoice. Whatever your plan, your evidence is never locked: you can always open, verify and export what you have captured.
+
+━━━━━━━━━━━━━━━━━━━━
+ABOUT THE PERMISSIONS
+━━━━━━━━━━━━━━━━━━━━
+
+EviCap asks for access to all websites because an investigation can involve any site. It logs pages only while a case is recording, and captures only what you ask it to. Forensic captures and full-page screenshots briefly use the browser's debugging feature, so Chrome shows a notice bar while the capture runs. That's expected, and EviCap lets go as soon as the capture ends.
+
+━━━━━━━━━━━━━━━━━━━━
 SUPPORT
-Email info@civildigital.co.uk.
+━━━━━━━━━━━━━━━━━━━━
+
+Questions, feedback or invoices: info@civildigital.co.uk
+
+EviCap is made by Civil Digital.
 ```
 
 **Category:** Productivity → Tools. (The template lists the old category names; pick the closest current one in the dashboard.)
