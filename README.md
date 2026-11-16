@@ -24,7 +24,7 @@ Built so far (spec milestones M0 to M5):
 - Popup, side panel, dashboard, onboarding, settings
 - Plans: Free limits and Pro features enforced on the device, a 14-day trial that sends nothing, card subscriptions through Stripe Managed Payments with Civil Digital's licence service (`service/`), and signed offline licence keys for invoiced organisations
 
-Still to do before launch: deploy the licence service and set its address in `src/lib/billing-config.ts` (SPEC §18, `service/README.md`), branded reports, the store listing and hosting the privacy policy.
+Still to do before launch: a first live purchase test (SPEC §18), branded reports, the store listing and hosting the privacy policy.
 
 ## Licence keys
 

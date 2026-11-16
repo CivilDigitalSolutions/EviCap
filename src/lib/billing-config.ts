@@ -19,7 +19,7 @@ export interface BillingConfig {
 const PRODUCTION: BillingConfig = {
   checkoutMonthly: 'https://buy.stripe.com/cNi7sNfpn8qd0KG3csbZe00',
   checkoutYearly: 'https://buy.stripe.com/00w14p7WV5e1fFAaEUbZe01',
-  serviceUrl: null,
+  serviceUrl: 'https://evicap-licence.withered-resonance-d668.workers.dev',
   customerPortal: 'https://app.link.com',
 };
 

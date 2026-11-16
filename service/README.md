@@ -2,6 +2,8 @@
 
 A Cloudflare Worker that turns a paid Stripe subscription into an EviCap licence key (SPEC §9.2). It stores nothing.
 
+Live at https://evicap-licence.withered-resonance-d668.workers.dev.
+
 | Route | What it does |
 |---|---|
 | `GET /success?session_id=…` | Where the Stripe Payment Links send the buyer after paying. Checks the Checkout Session and shows a signed licence key to paste into EviCap. |
@@ -56,4 +58,4 @@ You need a Cloudflare account (the free plan is enough) and access to the Civil 
 
 ## If a buyer loses their key
 
-Find their payment in the Stripe Dashboard, copy the Checkout Session ID (`cs_live_…`), and send them `https://<service>/success?session_id=cs_live_…`.
+Find their payment in the Stripe Dashboard, copy the Checkout Session ID (`cs_live_…`), and send them `https://evicap-licence.withered-resonance-d668.workers.dev/success?session_id=cs_live_…`.

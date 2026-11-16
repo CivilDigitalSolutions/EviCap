@@ -455,7 +455,7 @@ The Chrome Web Store no longer handles payments. Stripe Managed Payments was cho
 - **Removing:** *Remove from this computer* deletes the key locally; nothing is sent. There is no per-device activation limit (the key names its buyer; see §9.4).
 - **No billing connection until the user acts (D4):** the extension contacts the licence service only after a subscription key is pasted. Buying happens on Stripe's own pages.
 - **Trial:** 14 days, run on the device (§9.7). It sends nothing and needs no email address.
-- **Until the service is deployed**, `serviceUrl` in `src/lib/billing-config.ts` is empty: the buy buttons are hidden and Settings offers invoice licences only. Deploy steps: `service/README.md`.
+- **Deployed** (16 November 2026) at `https://evicap-licence.withered-resonance-d668.workers.dev` (Civil Digital's Cloudflare account). Both Payment Links redirect to its `/success` page, and `serviceUrl` in `src/lib/billing-config.ts` points to it. Deploy steps: `service/README.md`.
 
 ### 9.3 Plans and pricing
 
@@ -518,7 +518,7 @@ Organisations can pay Civil Digital by invoice or purchase order instead of by c
 - **Subscriptions:** the licence service (`service/src/index.ts`) and the extension side (`src/lib/billing.ts`, `src/lib/plan-sw.ts`), as in §9.2. The service is unit-tested against a fake Stripe API; the extension is tested end to end against a fake service, whose address e2e builds read from `chrome.storage.local` (production builds ignore it).
 
 **Not done (needs Civil Digital):**
-- **Deploy the licence service** (§18 item 0) and set `serviceUrl`. Online purchase stays hidden until then.
+- **A real purchase** has not been made yet: buy the monthly plan once, check the key page and activation, then refund and cancel it (§18 item 0).
 - **Branded reports** (organisation name and logo on the PDF). The report builder already accepts branding; the setting and the Pro check are still to add.
 
 ## 10. Network rules (no outbound data except billing and opt-in timestamps)
@@ -606,7 +606,7 @@ Chrome on Android has no extension support, and Safari on iOS lacks `webRequest`
 | **M2 — Media** | F6, F7-A, F7-C, media picker |
 | **M3 — Forensic & auto capture** | F3, F4 (WACZ), replay viewer |
 | **M4 — Export & verify** | F10, F11, report HTML/PDF |
-| **M5 — Billing & launch** | Done: Stripe Managed Payments products and Payment Links, the licence service, subscription and invoice licence keys, local trial, plan gating, onboarding. Still to do: deploy the licence service (§18 item 0), branded reports, store listing submission, privacy policy hosting |
+| **M5 — Billing & launch** | Done: Stripe Managed Payments products and Payment Links, the licence service (deployed), subscription and invoice licence keys, local trial, plan gating, onboarding. Still to do: a first live purchase test (§18 item 0), branded reports, store listing submission, privacy policy hosting |
 | **v1.x** | F7-B (HLS/DASH), selectors, search, annotations, trusted timestamps (FreeTSA), case encryption, Firefox build, social-media capture recipes (auto-expand comments, timeline scroll) |
 | **v2** | Mobile app, zkTLS research. Anything else that sends data off the device (team sync, server-side signing) needs a change to the network rules (§10) first. |
 
@@ -629,5 +629,5 @@ Chrome on Android has no extension support, and Safari on iOS lacks `webRequest`
 | D13 | **Card billing:** Stripe Managed Payments with Payment Links, plus Civil Digital's licence service for keys (§9.1). Lemon Squeezy (being merged into Stripe) and ExtensionPay (copyleft library) were considered first. The trial runs on the device. |
 
 ## 18. Open questions
-0. **Deploy the licence service (blocks online sales).** In Stripe, create a restricted key with read access to Checkout Sessions and Subscriptions. Deploy `service/` to Cloudflare with that key and the service signing key as secrets (`service/README.md`). Then point both Payment Links' confirmation at `https://<service>/success?session_id={CHECKOUT_SESSION_ID}` and set `serviceUrl` in `src/lib/billing-config.ts`.
+0. **First live purchase test.** The licence service is deployed and checked (it reaches Stripe with the restricted key, and accepts keys signed with its signing key), but no real checkout has gone through it yet. Buy the monthly plan once with a real card, confirm the key page and activation in EviCap, then refund and cancel in the Stripe Dashboard and confirm *Check now* reports the end.
 1. **Fees:** Managed Payments adds a fee on top of Stripe's card fees; check the current rate. At £4 a month, fixed per-payment fees take a larger share than on the annual plan.
