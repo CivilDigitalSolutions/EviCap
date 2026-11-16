@@ -1,0 +1,14 @@
+# EviCap licence service (SPEC §9.2). Deploy: see service/README.md.
+name = "evicap-licence"
+main = "src/index.ts"
+compatibility_date = "2026-11-01"
+workers_dev = true
+
+[vars]
+# Stripe prices for EviCap Pro (Civil Digital Services, live): £4/month, £40/year.
+PRICE_IDS = "price_1UcQm5QeMXeU9ocQ5MDGzuu9,price_1UcQm6QeMXeU9ocQ92CxjzLf"
+GRACE_DAYS = "14"
+
+# Secrets, set with `npx wrangler secret put <NAME>` (never in this file):
+#   STRIPE_SECRET_KEY  restricted key: Checkout Sessions read, Subscriptions read
+#   SIGNING_KEY_JWK    contents of tools/keys/service-signing-key.private.jwk

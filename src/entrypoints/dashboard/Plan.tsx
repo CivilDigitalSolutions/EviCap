@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LEMON, onlinePurchaseReady } from '@/lib/billing-config';
+import { BILLING, onlinePurchaseReady } from '@/lib/billing-config';
 import { rpc } from '@/lib/messages';
 import { FREE_LIMITS, PRICES } from '@/lib/plan';
 import { Banner, ErrorText } from '@/ui/components';
@@ -46,14 +46,14 @@ export function PlanCard() {
       )}
       {e.plan === 'pro' && e.source === 'subscription' && sub && (
         <p style={{ margin: 0 }}>
-          Pro through your subscription{sub.variantName ? ` (${sub.variantName})` : ''}
+          Pro through your subscription
           {sub.email ? (
             <>
               {' '}
               for <strong>{sub.email}</strong>
             </>
           ) : null}
-          . Last checked {timeText(sub.checkedAtUtc)}.
+          . It renews automatically{sub.checkedAtUtc ? `; last checked ${timeText(sub.checkedAtUtc)}` : ''}.
         </p>
       )}
       {e.plan === 'pro' && e.source === 'trial' && (
@@ -77,7 +77,7 @@ export function PlanCard() {
       )}
       {e.licenceProblem && <Banner kind="warn">{e.licenceProblem}</Banner>}
       {e.subscriptionProblem && <Banner kind="warn">{e.subscriptionProblem}</Banner>}
-      {sub && !e.subscriptionProblem && sub.problem && <p className="small muted" style={{ margin: 0 }}>Last check: {sub.problem}</p>}
+      {sub && !e.subscriptionProblem && sub.problem && <p className="small muted" style={{ margin: 0 }}>Last renewal attempt: {sub.problem}</p>}
 
       {e.plan === 'free' && (
         <div className="plan-option">
@@ -92,13 +92,13 @@ export function PlanCard() {
             <li>Export selected exhibits only</li>
           </ul>
           <div className="row">
-            {online && LEMON.checkoutMonthly && (
-              <a className="btn primary" href={LEMON.checkoutMonthly} target="_blank" rel="noreferrer">
+            {online && BILLING.checkoutMonthly && (
+              <a className="btn primary" href={BILLING.checkoutMonthly} target="_blank" rel="noreferrer">
                 Buy monthly
               </a>
             )}
-            {online && LEMON.checkoutYearly && (
-              <a className="btn" href={LEMON.checkoutYearly} target="_blank" rel="noreferrer">
+            {online && BILLING.checkoutYearly && (
+              <a className="btn" href={BILLING.checkoutYearly} target="_blank" rel="noreferrer">
                 Buy yearly
               </a>
             )}
@@ -116,8 +116,8 @@ export function PlanCard() {
           <p className="small muted" style={{ margin: '8px 0 0' }}>
             {online ? (
               <>
-                Payment is handled by Lemon Squeezy, which emails you a licence key to paste below. The trial runs on this computer and sends
-                nothing. Organisations can pay by invoice:{' '}
+                Payment is handled by Stripe. After paying you'll see a licence key to paste below. The trial runs on this computer and
+                sends nothing. Organisations can pay by invoice:{' '}
               </>
             ) : (
               <>The trial runs on this computer and sends nothing. To buy Pro for yourself or your team, email </>
@@ -133,8 +133,8 @@ export function PlanCard() {
           <button type="button" disabled={busy} onClick={() => act(() => rpc('checkSubscription'), 'Subscription checked.')}>
             Check now
           </button>
-          {LEMON.customerPortal && (
-            <a className="btn" href={LEMON.customerPortal} target="_blank" rel="noreferrer">
+          {BILLING.customerPortal && (
+            <a className="btn" href={BILLING.customerPortal} target="_blank" rel="noreferrer">
               Manage subscription
             </a>
           )}
@@ -142,7 +142,7 @@ export function PlanCard() {
             type="button"
             disabled={busy}
             onClick={() => {
-              if (confirm('Remove the subscription key from this computer? It can then be used on another computer. Your subscription itself is not cancelled.'))
+              if (confirm('Remove the subscription key from this computer? Pro switches off here. Your subscription itself is not cancelled.'))
                 void act(() => rpc('removeLicence', 'subscription'), 'Subscription key removed from this computer.');
             }}
           >
@@ -155,13 +155,13 @@ export function PlanCard() {
         <h3 style={{ margin: 0 }}>Licence key</h3>
         <p className="small muted" style={{ margin: 0 }}>
           {online
-            ? 'Paste the key from your EviCap Pro receipt, or the EVICAP1- key Civil Digital sent your organisation. Receipt keys are checked with Lemon Squeezy; EVICAP1- keys are checked on this computer and nothing is sent.'
+            ? 'Paste the key shown after you paid, or the key Civil Digital sent your organisation. Keys are checked on this computer. A subscription key is renewed about once a day by sending it to the EviCap licence service.'
             : 'Paste the key Civil Digital sent you. It is checked on this computer; nothing is sent anywhere.'}
         </p>
         <textarea
           rows={3}
           className="mono small"
-          placeholder={online ? 'EVICAP1-… or xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' : 'EVICAP1-…'}
+          placeholder="EVICAP1-…"
           value={key}
           onChange={(ev) => setKey(ev.target.value)}
           aria-label="Licence key"

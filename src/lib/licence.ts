@@ -2,10 +2,14 @@ import { canonicalBytes } from './jcs';
 import { base64url, fromBase64url } from './util';
 
 /**
- * Offline licence keys (SPEC §9.6). Civil Digital signs
- * JCS({schema, licenceId, org, email, plan, issuedAtUtc, expiresAtUtc}) with
- * its ECDSA P-256 licence key; the extension checks the signature against the
- * bundled public key. No network request is made.
+ * Licence keys (SPEC §9.2, §9.6). A key is
+ * JCS({schema, licenceId, org, email, plan, issuedAtUtc, expiresAtUtc[, subscriptionId]})
+ * signed with ECDSA P-256 by one of two Civil Digital keys:
+ * - the offline licence key, for invoice licences (tools/issue-licence.ts);
+ * - the licence service's key, for Stripe subscriptions (service/). These keys
+ *   carry `subscriptionId` and expire at the end of the paid period plus 14
+ *   days; the extension renews them through the service (billing.ts).
+ * Checking a key makes no network request.
  *
  * Key text: `EVICAP1-<base64url(JCS(payload))>.<base64url(signature)>`
  */
@@ -18,6 +22,8 @@ export interface LicencePayload {
   plan: 'pro';
   issuedAtUtc: string;
   expiresAtUtc: string;
+  /** Stripe subscription ID: present on keys from the licence service. */
+  subscriptionId?: string;
 }
 
 export type LicenceCheck =
@@ -36,9 +42,17 @@ const PRODUCTION_KEY: JsonWebKey = {
   y: 'iiRfconGSo_bg8MbkzLfJ3cLG4sQspRsnqeg24KJRWI',
 };
 
+/** The licence service's public key (private key: the service's SIGNING_KEY_JWK secret). */
+const SERVICE_KEY: JsonWebKey = {
+  kty: 'EC',
+  crv: 'P-256',
+  x: 'IJNntnXXcI7aVb1viURsa23XrlvJb6MEk-7LwNVzVwQ',
+  y: 'U4X4FXR2yrF4FcLm3VA1LKQ76HRdes7DYD1Cxeq_MaA',
+};
+
 /** Test builds (`wxt build --mode e2e`) also trust the key in tests/fixtures/licence-test-key.ts. */
 function trustedKeys(): JsonWebKey[] {
-  const keys = [PRODUCTION_KEY];
+  const keys = [PRODUCTION_KEY, SERVICE_KEY];
   if (__EVICAP_E2E__) {
     keys.push({ kty: 'EC', crv: 'P-256', x: 'KJv9l1zO3DuwePzGGTH5nd-6IYNwJtfvouLpSvXOUi0', y: 'C-YAd8TGzQLwiX0--uZm_MsakUEYdyhe-1E6hlcOkWE' });
   }

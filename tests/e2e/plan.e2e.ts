@@ -6,6 +6,8 @@ import { chromium, type BrowserContext, type Page, type Worker } from 'playwrigh
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Entitlement } from '../../src/lib/plan';
 import type { AuditEvent } from '../../src/lib/types';
+import { mintKey } from '../../service/src/index';
+import { TEST_LICENCE_PRIVATE_JWK } from '../fixtures/licence-test-key';
 import { testLicenceKey } from './licence';
 
 const EXT = resolve('.output/chrome-mv3-e2e');
@@ -213,113 +215,98 @@ describe('Free and Pro plans', () => {
   });
 });
 
-describe('Lemon Squeezy subscriptions (fake store)', () => {
-  const GOOD = '11111111-2222-4333-8444-555555555555';
-  const OTHER = '99999999-2222-4333-8444-555555555555';
-  const FULL = '77777777-2222-4333-8444-555555555555';
-  let lemon: Server;
-  let goodStatus = 'active';
-  let n = 0;
-  const calls: { path: string; form: Record<string, string> }[] = [];
-
-  const keyInfo = (key: string, status: string) => ({
-    id: 1,
-    status,
-    key,
-    activation_limit: 2,
-    activation_usage: 1,
-    created_at: '2026-11-01T00:00:00.000000Z',
-    expires_at: null,
+describe('Stripe subscriptions (fake licence service)', () => {
+  const ENV = { STRIPE_SECRET_KEY: '', SIGNING_KEY_JWK: JSON.stringify(TEST_LICENCE_PRIVATE_JWK), PRICE_IDS: 'price_month' };
+  const DAY_S = 86_400;
+  /** A Stripe subscription as the service would see it, paid up to `endsInDays` from now. */
+  const sub = (endsInDays: number) => ({
+    id: 'sub_e2e',
+    status: 'active',
+    items: { data: [{ price: { id: 'price_month' }, current_period_end: Math.floor(Date.now() / 1000) + endsInDays * DAY_S }] },
   });
-  const meta = (store: number) => ({
-    store_id: store,
-    order_id: 2,
-    order_item_id: 3,
-    product_id: 4242,
-    product_name: 'EviCap Pro',
-    variant_id: 5,
-    variant_name: 'Monthly',
-    customer_id: 6,
-    customer_name: 'Jo Tester',
-    customer_email: 'jo@example.test',
-  });
+  let service: Server;
+  let state: 'active' | 'ended' | 'down' = 'active';
+  const calls: string[] = [];
 
   beforeAll(async () => {
-    lemon = createServer((req, res) => {
+    service = createServer((req, res) => {
       let raw = '';
       req.on('data', (c) => (raw += c));
-      req.on('end', () => {
-        const path = (req.url ?? '').replace(/^\/v1\/licenses\//, '');
-        const form = Object.fromEntries(new URLSearchParams(raw));
-        calls.push({ path, form });
+      req.on('end', async () => {
         const send = (status: number, body: unknown) => {
           res.writeHead(status, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify(body));
         };
-        const key = form.license_key ?? '';
-        if (path === 'activate') {
-          if (key === FULL) return send(400, { activated: false, error: 'This license key has reached the activation limit.', license_key: keyInfo(key, 'active'), meta: meta(999) });
-          if (key !== GOOD && key !== OTHER) return send(404, { activated: false, error: 'license_key not found.' });
-          return send(200, { activated: true, error: null, license_key: keyInfo(key, 'active'), instance: { id: `inst-${++n}`, name: form.instance_name, created_at: '2026-11-16T00:00:00Z' }, meta: meta(key === OTHER ? 1 : 999) });
-        }
-        if (path === 'validate') return send(200, { valid: goodStatus === 'active', error: null, license_key: keyInfo(key, goodStatus), instance: { id: form.instance_id, name: 'x', created_at: '' }, meta: meta(999) });
-        if (path === 'deactivate') return send(200, { deactivated: true, error: null, license_key: keyInfo(key, 'inactive'), meta: meta(999) });
-        send(404, { error: 'not found' });
+        if (req.method !== 'POST' || req.url !== '/refresh') return send(404, { error: 'Not found' });
+        const { key } = JSON.parse(raw) as { key: string };
+        calls.push(key);
+        if (state === 'down') return send(502, { error: 'Stripe could not be reached.' });
+        if (state === 'ended') return send(200, { status: 'ended', reason: 'Your subscription has ended.' });
+        const minted = await mintKey(ENV, sub(30), { email: 'jo@example.test', org: 'Jo Tester' });
+        send(200, { status: 'active', key: minted.key, expiresAtUtc: minted.payload.expiresAtUtc });
       });
     });
-    await new Promise<void>((r) => lemon.listen(0, '127.0.0.1', () => r()));
-    const a = lemon.address();
-    const api = `http://127.0.0.1:${typeof a === 'object' && a ? a.port : 0}/v1/licenses`;
-    await sw.evaluate((u) => chrome.storage.local.set({ e2eLemonApi: u }), api);
+    await new Promise<void>((r) => service.listen(0, '127.0.0.1', () => r()));
+    const a = service.address();
+    await sw.evaluate((u) => chrome.storage.local.set({ e2eLicenceService: u }), `http://127.0.0.1:${typeof a === 'object' && a ? a.port : 0}`);
   });
 
-  afterAll(() => lemon?.close());
+  afterAll(() => service?.close());
 
-  it('offers online purchase in Settings when the store is set up', async () => {
+  it('offers the Stripe checkout in Settings', async () => {
     expect((await plan()).entitlement.plan).toBe('free');
     await dash.goto(`chrome-extension://${extId}/dashboard.html#/settings`);
     expect(await dash.getByRole('link', { name: 'Buy monthly' }).getAttribute('href')).toBe('https://example.test/buy/monthly');
     expect(await dash.getByRole('link', { name: 'Buy yearly' }).getAttribute('href')).toBe('https://example.test/buy/yearly');
   });
 
-  it('refuses a key from another product and gives its activation back', async () => {
-    expect(await rpcError('activateLicence', OTHER)).toMatch(/different product/);
-    expect(calls.at(-1)).toEqual({ path: 'deactivate', form: { license_key: OTHER, instance_id: 'inst-1' } });
-    expect(await rpcError('activateLicence', FULL)).toMatch(/already in use on as many computers/);
-    expect((await plan()).entitlement.plan).toBe('free');
-  });
-
-  it('activates a receipt key from Settings, sending only the key and a computer label', async () => {
-    calls.length = 0;
-    await dash.getByRole('textbox', { name: 'Licence key' }).fill(GOOD);
+  it('activates the key from the after-payment page without contacting anyone', async () => {
+    const { key } = await mintKey(ENV, sub(30), { email: 'jo@example.test', org: 'Jo Tester' });
+    await dash.getByRole('textbox', { name: 'Licence key' }).fill(key);
     await dash.getByRole('button', { name: 'Activate licence' }).click();
     await dash.getByText('Licence activated. EviCap Pro is on.').waitFor();
-    await dash.getByText(/Pro through your subscription \(Monthly\) for jo@example.test/).waitFor();
-    expect(calls).toHaveLength(1);
-    expect(Object.keys(calls[0]!.form).sort()).toEqual(['instance_name', 'license_key']);
-    expect(calls[0]!.form.instance_name).toMatch(/^EviCap on \S+, \S+/);
+    await dash.getByText(/Pro through your subscription for jo@example.test/).waitFor();
+    expect(calls).toHaveLength(0);
     const p = await plan();
-    expect(p.entitlement).toMatchObject({ plan: 'pro', source: 'subscription' });
+    expect(p.entitlement).toMatchObject({ plan: 'pro', source: 'subscription', renewalDue: false });
     const ev = (await idbAll<AuditEvent>('audit')).filter((e) => e.type === 'licence.changed').sort((a, b) => a.seq - b.seq).at(-1);
-    expect(ev?.payload).toMatchObject({ reason: 'subscription key activated', plan: 'pro', source: 'subscription', subscription: 'lemonsqueezy', email: 'jo@example.test' });
+    expect(ev?.payload).toMatchObject({ reason: 'subscription key activated', plan: 'pro', source: 'subscription', subscription: 'stripe', subscriptionId: 'sub_e2e' });
+  });
+
+  it('renews the key through the service, sending only the key', async () => {
+    const before = (await sw.evaluate(async () => ((await chrome.storage.local.get('plan')) as { plan: { subscription: { key: string } } }).plan.subscription.key));
+    await dash.getByRole('button', { name: 'Check now' }).click();
+    await dash.getByText('Subscription checked.').waitFor();
+    expect(calls).toEqual([before]);
+    const after = (await sw.evaluate(async () => ((await chrome.storage.local.get('plan')) as { plan: { subscription: { key: string; checkedAtUtc: string } } }).plan.subscription));
+    expect(after.key).not.toBe(before);
+    expect(after.checkedAtUtc).toBeTruthy();
+  });
+
+  it('keeps Pro while the service is down', async () => {
+    state = 'down';
+    await rpc('checkSubscription');
+    const p = await plan();
+    expect(p.entitlement.plan).toBe('pro');
+    expect(p.entitlement.subscription?.problem).toMatch(/Stripe could not be reached/);
   });
 
   it('drops to Free when the subscription ends', async () => {
-    goodStatus = 'expired';
+    state = 'ended';
     await dash.getByRole('button', { name: 'Check now' }).click();
-    await dash.getByText(/Your subscription has ended/).waitFor();
-    expect(calls.at(-1)).toEqual({ path: 'validate', form: { license_key: GOOD, instance_id: 'inst-2' } });
+    await dash.getByText(/Your subscription has ended. Subscribe again/).waitFor();
     expect((await plan()).entitlement.plan).toBe('free');
-    goodStatus = 'active';
-    await rpc('checkSubscription');
-    expect((await plan()).entitlement.plan).toBe('pro');
   });
 
-  it('removes the key from this computer and frees the activation', async () => {
-    dash.once('dialog', (d) => void d.accept());
-    await dash.getByRole('button', { name: 'Remove from this computer' }).click();
-    await dash.getByText('Subscription key removed from this computer.').waitFor();
-    expect(calls.at(-1)).toEqual({ path: 'deactivate', form: { license_key: GOOD, instance_id: 'inst-2' } });
+  it('renews an out-of-date key when it is pasted, and removes keys locally', async () => {
+    state = 'active';
+    const stale = await mintKey(ENV, sub(-20), { email: 'jo@example.test', org: 'Jo Tester' });
+    const n = calls.length;
+    await rpc('activateLicence', stale.key);
+    expect(calls.length).toBe(n + 1);
+    expect((await plan()).entitlement).toMatchObject({ plan: 'pro', source: 'subscription' });
+    await rpc('removeLicence', 'subscription');
+    expect(calls.length).toBe(n + 1);
     const p = await plan();
     expect(p.entitlement.plan).toBe('free');
     expect(p.entitlement.subscription).toBeNull();

@@ -6,6 +6,11 @@
  *       Create the signing key in tools/keys/ (once). Prints the public key to
  *       put in src/lib/licence.ts. Back up tools/keys/ somewhere safe and offline.
  *
+ *   node tools/issue-licence.ts init-service
+ *       Create the licence service's signing key (once), in tools/keys/. Prints the
+ *       public key for src/lib/licence.ts (SERVICE_KEY). The private key goes to the
+ *       service as its SIGNING_KEY_JWK secret (see service/README.md).
+ *
  *   node tools/issue-licence.ts issue --org "Acme Ltd" --email jo@acme.example [--months 12] [--key path]
  *       Print a licence key for one user and record it in tools/keys/issued-licences.csv.
  *
@@ -21,6 +26,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const KEY_DIR = join(here, 'keys');
 const DEFAULT_KEY = join(KEY_DIR, 'licence-signing-key.private.jwk');
 const LOG = join(KEY_DIR, 'issued-licences.csv');
+const SERVICE_KEY = join(KEY_DIR, 'service-signing-key.private.jwk');
 const subtle = webcrypto.subtle;
 
 const b64url = (b: Uint8Array | ArrayBuffer) => Buffer.from(b instanceof Uint8Array ? b : new Uint8Array(b)).toString('base64url');
@@ -48,18 +54,18 @@ export async function signLicence(privateJwk: JsonWebKey, input: { org: string; 
   return { payload, key: `EVICAP1-${b64url(canonicalBytes(payload))}.${b64url(sig)}` };
 }
 
-async function init() {
-  if (existsSync(DEFAULT_KEY)) {
-    console.error(`A signing key already exists at ${DEFAULT_KEY}. Not replacing it.`);
+async function init(path = DEFAULT_KEY, name = 'PRODUCTION_KEY') {
+  if (existsSync(path)) {
+    console.error(`A signing key already exists at ${path}. Not replacing it.`);
     process.exit(1);
   }
   mkdirSync(KEY_DIR, { recursive: true });
   const pair = (await subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify'])) as CryptoKeyPair;
   const priv = await subtle.exportKey('jwk', pair.privateKey);
   const pub = await subtle.exportKey('jwk', pair.publicKey);
-  writeFileSync(DEFAULT_KEY, JSON.stringify(priv, null, 2) + '\n', { mode: 0o600 });
-  console.log(`Signing key written to ${DEFAULT_KEY}. Back it up offline; never commit it.`);
-  console.log('Public key for src/lib/licence.ts (PRODUCTION_KEY):');
+  writeFileSync(path, JSON.stringify(priv, null, 2) + '\n', { mode: 0o600 });
+  console.log(`Signing key written to ${path}. Back it up offline; never commit it.`);
+  console.log(`Public key for src/lib/licence.ts (${name}):`);
   console.log(JSON.stringify({ kty: pub.kty, crv: pub.crv, x: pub.x, y: pub.y }, null, 2));
 }
 
@@ -84,9 +90,10 @@ async function issue() {
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const cmd = process.argv[2];
   if (cmd === 'init') await init();
+  else if (cmd === 'init-service') await init(SERVICE_KEY, 'SERVICE_KEY');
   else if (cmd === 'issue') await issue();
   else {
-    console.log('Commands: init | issue --org "Organisation" --email user@example.com [--months 12]');
+    console.log('Commands: init | init-service | issue --org "Organisation" --email user@example.com [--months 12]');
     process.exit(cmd ? 1 : 0);
   }
 }

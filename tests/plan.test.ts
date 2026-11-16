@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { LemonLicence } from '../src/lib/billing';
+import { mintKey } from '../service/src/index';
 import { checkLicence, decodeLicence } from '../src/lib/licence';
 import { computeEntitlement, EMPTY_PLAN, getEntitlement, monthStartUtc, PlanError, proRequired, setPlanState } from '../src/lib/plan';
 import { signLicence } from '../tools/issue-licence';
@@ -8,6 +8,13 @@ import { TEST_LICENCE_PRIVATE_JWK } from './fixtures/licence-test-key';
 const TEST_PUBLIC: JsonWebKey = { kty: 'EC', crv: 'P-256', x: TEST_LICENCE_PRIVATE_JWK.x, y: TEST_LICENCE_PRIVATE_JWK.y };
 const NOW = new Date('2026-06-01T12:00:00Z');
 const DAY = 86_400_000;
+
+/** A subscription key as the licence service makes it: paid to 1 July, plus 14 days. */
+function signSubscription(now: Date) {
+  const env = { STRIPE_SECRET_KEY: '', SIGNING_KEY_JWK: JSON.stringify(TEST_LICENCE_PRIVATE_JWK), PRICE_IDS: 'p' };
+  const sub = { id: 'sub_1', status: 'active', items: { data: [{ price: { id: 'p' }, current_period_end: Date.parse('2026-07-01T12:00:00Z') / 1000 }] } };
+  return mintKey(env, sub, { email: 'jo@acme.example', org: 'Acme Ltd' }, now);
+}
 
 async function key(months = 12, now = NOW) {
   return (await signLicence(TEST_LICENCE_PRIVATE_JWK, { org: 'Acme Ltd', email: 'jo@acme.example', months, now })).key;
@@ -82,27 +89,20 @@ describe('entitlement', () => {
     expect(e.licenceProblem).toMatch(/expired on 2026-07-01/);
   });
 
-  it('keeps a paid subscription for 14 days without an answer from the provider', () => {
-    const sub: LemonLicence = {
-      key: '38b1460a-5104-4067-a91d-77b872934d51',
-      instanceId: 'i-1',
-      status: 'active',
-      email: 'jo@example.test',
-      variantName: 'Monthly',
-      expiresAtUtc: null,
-      checkedAtUtc: NOW.toISOString(),
-      lastOkAtUtc: NOW.toISOString(),
-      problem: null,
-    };
-    const state = { ...EMPTY_PLAN, subscription: sub };
-    expect(computeEntitlement(state, null, new Date(NOW.getTime() + 13 * DAY))).toMatchObject({ plan: 'pro', source: 'subscription' });
-    const stale = computeEntitlement(state, null, new Date(NOW.getTime() + 15 * DAY));
+  it('gives Pro while a subscription key is valid, and not once it has ended or run out', async () => {
+    const { key } = await signSubscription(NOW);
+    const check = (at: Date) => checkLicence(key, at, [TEST_PUBLIC]);
+    const state = { ...EMPTY_PLAN, subscription: { key, checkedAtUtc: null, problem: null, ended: null } };
+    const live = computeEntitlement(state, null, NOW, await check(NOW));
+    expect(live).toMatchObject({ plan: 'pro', source: 'subscription', untilUtc: '2026-07-15T12:00:00.000Z', renewalDue: false });
+    expect(live.subscription).toMatchObject({ email: 'jo@acme.example', subscriptionId: 'sub_1' });
+    const later = new Date('2026-07-16T00:00:00Z');
+    const stale = computeEntitlement({ ...state, subscription: { ...state.subscription, problem: 'offline' } }, null, later, await check(later));
     expect(stale.plan).toBe('free');
-    expect(stale.subscriptionProblem).toMatch(/not been able to check your subscription for 14 days/);
-    const ended = computeEntitlement({ ...state, subscription: { ...sub, status: 'expired' } }, null, NOW);
+    expect(stale.subscriptionProblem).toMatch(/could not renew your subscription key before it ran out \(offline\)/);
+    const ended = computeEntitlement({ ...state, subscription: { ...state.subscription, ended: 'Your subscription has ended.' } }, null, NOW, await check(NOW));
     expect(ended.plan).toBe('free');
-    expect(ended.subscriptionProblem).toMatch(/subscription has ended/);
-    expect(computeEntitlement({ ...state, subscription: { ...sub, status: 'disabled' } }, null, NOW).plan).toBe('free');
+    expect(ended.subscriptionProblem).toMatch(/subscription has ended. Subscribe again/);
   });
 
   it('reads the stored plan', async () => {

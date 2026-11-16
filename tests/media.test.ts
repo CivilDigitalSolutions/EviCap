@@ -79,7 +79,7 @@ describe('net helpers', () => {
 describe('network rules (SPEC §10)', () => {
   // Only these modules may make network requests: net.ts (extension contexts),
   // media-scripts.ts (runs inside the captured page itself) and billing.ts
-  // (Lemon Squeezy, only after the user pastes a subscription key).
+  // (Civil Digital's licence service, only after the user pastes a subscription key).
   const ALLOWED = new Set(['src/lib/net.ts', 'src/lib/media-scripts.ts', 'src/lib/billing.ts']);
   const files: string[] = [];
   const walk = (dir: string) => {

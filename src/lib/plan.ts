@@ -1,16 +1,14 @@
-import type { LemonLicence } from './billing';
 import { checkLicence, type LicenceCheck, type LicencePayload } from './licence';
 
 /**
  * Free and Pro (SPEC §9.3). Pro comes from an invoice licence key (§9.6), a
- * Lemon Squeezy subscription key (§9.2) or the 14-day trial. Checks run on this device only
+ * Stripe subscription key from the licence service (§9.2) or the 14-day trial. Checks run on this device only
  * (§9.4). Losing Pro never locks existing data: closed cases, exports and
  * verification always work.
  */
 
 export const FREE_LIMITS = { openCases: 2, autoCapturesPerCase: 100, forensicPerMonth: 10 } as const;
 export const TRIAL_DAYS = 14;
-export const OFFLINE_GRACE_DAYS = 14;
 export const RENEWAL_NOTICE_DAYS = 30;
 export const PRICES = { monthly: '£4 per month', yearly: '£40 per year' } as const;
 
@@ -25,11 +23,21 @@ const FEATURE_NAMES: Record<ProFeature, string> = {
   search: 'Search',
 };
 
+/** A subscription key from the licence service, and the last attempt to renew it. */
+export interface SubscriptionState {
+  key: string;
+  checkedAtUtc: string | null;
+  /** The last renewal problem (for example, the service could not be reached). */
+  problem: string | null;
+  /** Set when the service says the subscription has ended. */
+  ended: string | null;
+}
+
 export interface PlanState {
   trialStartedAtUtc: string | null;
+  /** An invoice licence key (no subscriptionId). */
   licenceKey: string | null;
-  /** A Lemon Squeezy subscription key activated on this computer. */
-  subscription: LemonLicence | null;
+  subscription: SubscriptionState | null;
   /** The plan last recorded in the audit log, to notice changes such as expiry. */
   recorded: { plan: 'free' | 'pro'; source: Entitlement['source'] } | null;
 }
@@ -47,8 +55,8 @@ export interface Entitlement {
   canStartTrial: boolean;
   /** Within 30 days of the licence expiring. */
   renewalDue: boolean;
-  subscription: LemonLicence | null;
-  /** Why a stored subscription key is not giving Pro (ended, disabled, not checked for too long). */
+  subscription: (LicencePayload & { checkedAtUtc: string | null; problem: string | null }) | null;
+  /** Why a stored subscription key is not giving Pro (ended, or not renewed in time). */
   subscriptionProblem: string | null;
 }
 
@@ -56,7 +64,7 @@ export const EMPTY_PLAN: PlanState = { trialStartedAtUtc: null, licenceKey: null
 
 const DAY = 86_400_000;
 
-export function computeEntitlement(state: PlanState, licence: LicenceCheck | null, now = new Date()): Entitlement {
+export function computeEntitlement(state: PlanState, licence: LicenceCheck | null, now = new Date(), subscription: LicenceCheck | null = null): Entitlement {
   const t = now.getTime();
   const trialEnds = state.trialStartedAtUtc ? new Date(Date.parse(state.trialStartedAtUtc) + TRIAL_DAYS * DAY).toISOString() : null;
   const base = {
@@ -66,28 +74,28 @@ export function computeEntitlement(state: PlanState, licence: LicenceCheck | nul
     trialEndsAtUtc: trialEnds,
     canStartTrial: !state.trialStartedAtUtc,
     renewalDue: false,
-    subscription: state.subscription,
-    subscriptionProblem: subscriptionProblem(state.subscription, t),
+    subscription:
+      subscription?.ok && state.subscription ? { ...subscription.payload, checkedAtUtc: state.subscription.checkedAtUtc, problem: state.subscription.problem } : null,
+    subscriptionProblem: subscriptionProblem(state.subscription, subscription),
   };
   if (licence?.ok && !licence.expired) {
     const until = licence.payload.expiresAtUtc;
     return { ...base, plan: 'pro', source: 'licence', untilUtc: until, renewalDue: Date.parse(until) - t < RENEWAL_NOTICE_DAYS * DAY };
   }
-  const sub = state.subscription;
-  if (sub && !base.subscriptionProblem) {
-    return { ...base, plan: 'pro', source: 'subscription', untilUtc: sub.expiresAtUtc };
+  if (state.subscription && subscription?.ok && !base.subscriptionProblem) {
+    return { ...base, plan: 'pro', source: 'subscription', untilUtc: subscription.payload.expiresAtUtc };
   }
   if (trialEnds && Date.parse(trialEnds) > t) return { ...base, plan: 'pro', source: 'trial', untilUtc: trialEnds };
   return { ...base, plan: 'free', source: null, untilUtc: null };
 }
 
-function subscriptionProblem(sub: LemonLicence | null, t: number): string | null {
+function subscriptionProblem(sub: SubscriptionState | null, check: LicenceCheck | null): string | null {
   if (!sub) return null;
-  if (sub.status === 'expired') return 'Your subscription has ended. Renew it from your Lemon Squeezy account to use Pro again.';
-  if (sub.status === 'disabled') return 'This subscription key has been disabled. Contact info@civildigital.co.uk.';
-  if (sub.status === 'invalid') return sub.problem ?? 'This subscription key is no longer valid.';
-  if (t - Date.parse(sub.lastOkAtUtc) >= OFFLINE_GRACE_DAYS * DAY) {
-    return `EviCap has not been able to check your subscription for ${OFFLINE_GRACE_DAYS} days. Connect to the internet and press Check now.`;
+  if (sub.ended) return `${sub.ended} Subscribe again from Settings → Plan to use Pro.`;
+  if (!check) return null;
+  if (!check.ok) return check.reason;
+  if (check.expired) {
+    return `EviCap could not renew your subscription key before it ran out${sub.problem ? ` (${sub.problem})` : ''}. Connect to the internet and press Check now.`;
   }
   return null;
 }
@@ -122,7 +130,8 @@ export async function setPlanState(patch: Partial<PlanState>): Promise<PlanState
 export async function getEntitlement(now = new Date()): Promise<Entitlement> {
   const state = await getPlanState();
   const licence = state.licenceKey ? await checkLicence(state.licenceKey, now) : null;
-  return computeEntitlement(state, licence, now);
+  const subscription = state.subscription ? await checkLicence(state.subscription.key, now) : null;
+  return computeEntitlement(state, licence, now, subscription);
 }
 
 export async function isPro(): Promise<boolean> {

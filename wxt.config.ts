@@ -2,7 +2,7 @@ import { defineConfig } from 'wxt';
 import { verifierPlugin } from './tools/verifier-plugin';
 
 // EviCap — see docs/SPEC.md. Network rules (§10): EviCap contacts only
-// Lemon Squeezy (subscription keys, once one is entered), FreeTSA (opt-in timestamps) and the websites whose
+// Civil Digital's licence service (renewing a subscription key, once one is entered), FreeTSA (opt-in timestamps) and the websites whose
 // images and video the user chose to capture (re-fetching originals, D5).
 // connect-src must therefore allow http(s); src/lib/net.ts is the only module
 // allowed to fetch site content, and tests/network-rules.test.ts enforces it.

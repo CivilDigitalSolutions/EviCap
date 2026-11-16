@@ -1,6 +1,5 @@
 import { appendEvent } from './audit';
-import { activateLemon, deactivateLemon, isLemonKey, validateLemon } from './billing';
-import { getEnvironment } from './environment';
+import { renewSubscriptionKey } from './billing';
 import { getDb, listCaptures } from './db';
 import { checkLicence } from './licence';
 import { FREE_LIMITS, getEntitlement, getPlanState, monthStartUtc, PlanError, setPlanState, type Entitlement } from './plan';
@@ -67,7 +66,7 @@ function summary(e: Entitlement) {
     untilUtc: e.untilUtc,
     ...(e.licence ? { licenceId: e.licence.licenceId, org: e.licence.org, email: e.licence.email, licenceExpiresAtUtc: e.licence.expiresAtUtc } : {}),
     ...(e.source === 'subscription' && e.subscription
-      ? { subscription: 'lemonsqueezy', email: e.subscription.email, variant: e.subscription.variantName, instanceId: e.subscription.instanceId }
+      ? { subscription: 'stripe', subscriptionId: e.subscription.subscriptionId, email: e.subscription.email, licenceExpiresAtUtc: e.subscription.expiresAtUtc }
       : {}),
   };
 }
@@ -87,34 +86,31 @@ export async function recordPlanChange(reason: string, force = false): Promise<E
   return e;
 }
 
-/** Label for this computer in the buyer's Lemon Squeezy account: browser and system only. */
-async function instanceName(): Promise<string> {
-  const env = await getEnvironment();
-  const browser = env.browser.split(' ')[0] || 'browser';
-  const os = env.os.split(' (')[0] || 'unknown system';
-  return `EviCap on ${browser}, ${os}`;
-}
-
 export async function activateLicence(text: string): Promise<Entitlement> {
-  if (isLemonKey(text)) return activateSubscription(text.trim());
-  const check = await checkLicence(text);
+  const clean = text.replace(/\s+/g, '');
+  const check = await checkLicence(clean);
   if (!check.ok) throw new Error(check.reason);
+  if (check.payload.subscriptionId) return activateSubscription(clean, check.expired);
   if (check.expired) throw new Error(`This licence expired on ${check.payload.expiresAtUtc.slice(0, 10)}. Contact info@civildigital.co.uk to renew it.`);
   const previous = (await getPlanState()).licenceKey;
-  await setPlanState({ licenceKey: text.replace(/\s+/g, '') });
+  await setPlanState({ licenceKey: clean });
   return recordPlanChange(previous ? 'licence key replaced' : 'licence key activated', true);
 }
 
-async function activateSubscription(key: string): Promise<Entitlement> {
+/** A subscription key from the licence service's page. Checked on this computer; renewed online only if it has run out. */
+async function activateSubscription(key: string, expired: boolean): Promise<Entitlement> {
   const previous = (await getPlanState()).subscription;
-  if (previous?.key === key && previous.status === 'active') return recordPlanChange('subscription key checked');
-  const lic = await activateLemon(key, await instanceName());
-  if (previous) await deactivateLemon(previous);
-  await setPlanState({ subscription: lic });
+  let current = key;
+  if (expired) {
+    const r = await renewSubscriptionKey(key);
+    if (r.status === 'ended') throw new Error(`${r.reason} Subscribe again from Settings → Plan to use Pro.`);
+    current = r.key;
+  }
+  await setPlanState({ subscription: { key: current, checkedAtUtc: expired ? nowUtc() : null, problem: null, ended: null } });
   return recordPlanChange(previous ? 'subscription key replaced' : 'subscription key activated', true);
 }
 
-/** Remove the invoice licence, the subscription key, or both, from this computer. */
+/** Remove the invoice licence, the subscription key, or both, from this computer. Nothing is sent. */
 export async function removeLicence(kind: 'licence' | 'subscription' | 'all' = 'all'): Promise<Entitlement> {
   const state = await getPlanState();
   const removed: string[] = [];
@@ -123,8 +119,6 @@ export async function removeLicence(kind: 'licence' | 'subscription' | 'all' = '
     removed.push('licence key');
   }
   if (kind !== 'licence' && state.subscription) {
-    // Frees the activation so the key can be used on another computer.
-    await deactivateLemon(state.subscription);
     await setPlanState({ subscription: null });
     removed.push('subscription key');
   }
@@ -134,14 +128,30 @@ export async function removeLicence(kind: 'licence' | 'subscription' | 'all' = '
 
 const RECHECK_MS = 20 * 3_600_000;
 
-/** Ask Lemon Squeezy about the subscription key: about once a day, or now when `force` is set. */
+/**
+ * Renew the subscription key through the licence service: about once a day,
+ * or now when `force` is set. A failure leaves the current key in place; it
+ * stays valid until the end of the paid period plus 14 days.
+ */
 export async function checkSubscription(force = false): Promise<void> {
   const sub = (await getPlanState()).subscription;
-  if (!sub) return;
-  if (!force && Date.now() - Date.parse(sub.checkedAtUtc) < RECHECK_MS) return;
-  const next = await validateLemon(sub);
+  if (!sub || (sub.ended && !force)) return;
+  if (!force && sub.checkedAtUtc && Date.now() - Date.parse(sub.checkedAtUtc) < RECHECK_MS) return;
+  let next = { ...sub, checkedAtUtc: nowUtc() };
+  try {
+    const r = await renewSubscriptionKey(sub.key);
+    if (r.status === 'ended') next = { ...next, ended: r.reason, problem: null };
+    else {
+      const [was, now] = [await checkLicence(sub.key), await checkLicence(r.key)];
+      if (!now.ok || now.payload.subscriptionId !== (was.ok ? was.payload.subscriptionId : undefined)) {
+        next = { ...next, problem: 'The licence service sent a key that does not match this subscription.' };
+      } else next = { ...next, key: r.key, problem: null, ended: null };
+    }
+  } catch (e) {
+    next = { ...next, problem: e instanceof Error ? e.message : String(e) };
+  }
   // The key may have been removed or replaced while the check ran.
-  if ((await getPlanState()).subscription?.instanceId === sub.instanceId) await setPlanState({ subscription: next });
+  if ((await getPlanState()).subscription?.key === sub.key) await setPlanState({ subscription: next });
 }
 
 export async function startTrial(): Promise<Entitlement> {

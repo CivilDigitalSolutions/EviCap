@@ -8,7 +8,7 @@
 | **Platforms (v1)** | Google Chrome and Microsoft Edge (Manifest V3). Firefox desktop in v1.x. |
 | **Data model** | Local-only. No evidence, history or case data ever leaves the device. Cases can also be saved as files in a folder on the user's computer, to protect against data loss. |
 | **Outbound data** | Billing only, plus a hash sent to FreeTSA if the user turns on trusted timestamping (§10) |
-| **Billing** | Lemon Squeezy (merchant of record) for card subscriptions; invoice licence keys from Civil Digital for organisations |
+| **Billing** | Stripe Managed Payments (Stripe is merchant of record) for card subscriptions, with a small Civil Digital licence service; invoice licence keys for organisations |
 
 ---
 
@@ -107,7 +107,7 @@ It is designed to do what Hunchly and Magnet Web Page Saver do, and to improve o
 - **ZIP:** `fflate` or `zip.js` (streaming).
 - **Search:** `MiniSearch` or `FlexSearch` (in-browser full-text index).
 - **Canonical JSON:** RFC 8785 (JCS) serialiser for anything that gets hashed or signed.
-- **Billing:** Lemon Squeezy's License API, called directly (no SDK) — see §9.
+- **Billing:** Stripe Payment Links (no Stripe code in the extension) and Civil Digital's licence service (`service/`, a Cloudflare Worker) — see §9.
 - **Tests:** Vitest for unit tests; Playwright with the unpacked extension loaded for end-to-end tests.
 
 ## 6. Features
@@ -426,34 +426,36 @@ EviCap's own times come from the computer's clock, which the user can change. A 
 | `debugger` | Forensic capture (F4), full-page screenshots, response bodies, TLS details | **Sensitive; expect manual review.** Only attached during a user-initiated capture. Justification text must be written carefully. |
 | `tabCapture`, `offscreen` | Tab video recording (F7-C), hashing, ZIP building | — |
 | `sidePanel` | Live log UI | — |
-| `alarms` | Plan check every 6 hours (on the device; Lemon Squeezy is asked about once a day, and only once a subscription key has been entered), periodic chain-head timestamp (opt-in) | — |
+| `alarms` | Plan check every 6 hours (on the device; the licence service is asked about once a day, and only once a subscription key has been entered), periodic chain-head timestamp (opt-in) | — |
 | Host permissions `<all_urls>` | Recording and capture work on any site the investigator visits; cross-origin media fetch | Requested at install, since recording all sites is the core function. Explain this in the listing. |
-| `https://api.lemonsqueezy.com/*` | Subscription key activation and checks (§9) | Already covered by `<all_urls>`; listed for transparency. Only after the user enters a subscription key. |
+| The licence service (`*.workers.dev`) | Renewing a subscription licence key (§9) | Already covered by `<all_urls>`; listed for transparency. Only after the user enters a subscription key. |
 | `https://freetsa.org/*` | Trusted timestamping (§7.5), opt-in | Already covered by `<all_urls>`; listed for transparency. Sends a hash only. |
 
 Chrome version: **Chrome 116+** (promise-based `pageCapture`, mature offscreen and sidePanel APIs). Target the current stable release.
 
-## 9. Billing (Lemon Squeezy)
+## 9. Billing (Stripe Managed Payments)
 
-### 9.1 Why Lemon Squeezy
-The Chrome Web Store no longer handles payments. Lemon Squeezy was chosen (D13) because:
-- it is the **merchant of record**: it sells to the customer, and collects and pays VAT and sales tax worldwide. Civil Digital receives payouts and doesn't need to register for VAT abroad (D6);
-- it hosts the checkout, receipts, renewals and the customer's subscription management ("My Orders");
-- it issues a **licence key** with each subscription, and its **License API** (activate, validate, deactivate) needs no secret key, so the extension can call it directly and **no backend is needed**;
-- no third-party code is bundled. ExtensionPay was considered first, but its client library is published under a copyleft licence.
+### 9.1 Why Stripe Managed Payments
+The Chrome Web Store no longer handles payments. Stripe Managed Payments was chosen (D13) because:
+- Stripe is the **merchant of record** ("Sold through Link"): it sells to the customer, and collects and pays VAT and sales tax in more than 80 countries. It also handles fraud, disputes, refunds, receipts and transaction support. Civil Digital doesn't need to register for VAT abroad (D6). UK businesses and software products are eligible.
+- Checkout is a Stripe **Payment Link**, so the extension contains no Stripe code and no Stripe key.
+- Lemon Squeezy, chosen first, is being folded into Stripe Managed Payments and recommended it. ExtensionPay was ruled out because its client library is copyleft.
+
+**The gap:** Managed Payments has no licence keys, and the extension must never hold a Stripe secret key. Civil Digital therefore runs a small **licence service** (`service/`, a Cloudflare Worker, free tier) that turns a paid subscription into an EviCap licence key. It stores nothing.
 
 ### 9.2 Integration (as built)
-- **Buying:** Settings → Plan shows *Buy monthly* and *Buy yearly*, which open the Lemon Squeezy checkout links in a new tab. The extension sends nothing; the user deals with Lemon Squeezy directly. The receipt email contains the licence key.
-- **Activation:** the user pastes the key into Settings → Plan. A key in UUID form is a Lemon Squeezy key; one starting `EVICAP1-` is an invoice licence (§9.6). EviCap calls `POST /v1/licenses/activate` with the key and a label for this computer ("EviCap on Edge, Windows 11"), and keeps the activation ID it gets back.
-- **Product check:** the answer must name Civil Digital's store and the EviCap Pro product (`src/lib/billing-config.ts`), as Lemon Squeezy advises; otherwise a key from any Lemon Squeezy shop would unlock Pro. A wrong key's activation is given back at once.
-- **Activation limit:** set on the product in Lemon Squeezy (suggested: 2, for a work and a home computer). When it is reached, EviCap says so and explains how to free one.
-- **Re-check:** `POST /v1/licenses/validate` with the key and activation ID, at most about once a day (the 6-hourly `plan-check` alarm, skipped if the last check was under 20 hours ago), and when the user presses *Check now*.
-- **Subscription status:** Lemon Squeezy keeps a subscription's key `active` while the subscription is paid up, including after cancellation until the paid period ends. It becomes `expired` when the subscription ends (or payment fails for good) and `disabled` if Civil Digital disables it. EviCap gives Pro only while the key is `active`.
-- **Offline grace:** if Lemon Squeezy can't be reached, the last answer stands for **14 days**; after that Pro switches off until a check succeeds. Existing data is never locked (principle 5).
-- **Removing:** *Remove from this computer* calls `POST /v1/licenses/deactivate`, freeing the activation for another computer. It doesn't cancel the subscription; *Manage subscription* opens Lemon Squeezy's customer portal for that.
-- **No billing connection until the user acts (D4):** EviCap contacts Lemon Squeezy only after a subscription key is pasted. Buying happens on Lemon Squeezy's own pages.
+- **Stripe objects** (live, Civil Digital Services): product *EviCap Pro* (tax code `txcd_10202003`, downloadable software, business use), prices £4/month (`price_1UcQm5QeMXeU9ocQ5MDGzuu9`) and £40/year (`price_1UcQm6QeMXeU9ocQ92CxjzLf`), both VAT-inclusive so buyers pay exactly £4 / £40; Payment Links with Managed Payments for each.
+- **Buying:** Settings → Plan shows *Buy monthly* and *Buy yearly*, which open the Payment Links in a new tab. The extension sends nothing.
+- **Getting the key:** after payment, Stripe redirects to the service's `/success?session_id=…` page. The service checks the Checkout Session with Stripe (complete, a subscription, an EviCap Pro price, still live) and shows a signed licence key with a *Copy key* button. Session IDs are unguessable, so that page works as a private link; Civil Digital can resend it from the Stripe Dashboard if a buyer loses the key.
+- **Key format:** the same as invoice licences (§9.6), plus `subscriptionId`, signed with the service's own ECDSA P-256 key (public key bundled in `src/lib/licence.ts` as `SERVICE_KEY`; private key only in the service's secrets and an offline backup). The key is valid until the end of the paid period **plus 14 days**.
+- **Activation:** the user pastes the key into Settings → Plan. It is checked on the device; **no request is made**.
+- **Renewal:** about once a day (the 6-hourly `plan-check` alarm, skipped if the last attempt was under 20 hours ago) and on *Check now*, the extension sends the key to the service's `/refresh`. The service checks the subscription with Stripe and returns a renewed key (`active`, `trialing` or `past_due`, while Stripe retries a payment) or `ended`.
+- **Grace:** if the service or Stripe can't be reached, the current key keeps working until it runs out (end of the paid period plus 14 days). Existing data is never locked (principle 5).
+- **Cancelling:** customers manage their subscription at Stripe's Onelink (`app.link.com`), linked as *Manage subscription*. A cancelled subscription stays `active` until the paid period ends; the next renewal after that returns `ended`.
+- **Removing:** *Remove from this computer* deletes the key locally; nothing is sent. There is no per-device activation limit (the key names its buyer; see §9.4).
+- **No billing connection until the user acts (D4):** the extension contacts the licence service only after a subscription key is pasted. Buying happens on Stripe's own pages.
 - **Trial:** 14 days, run on the device (§9.7). It sends nothing and needs no email address.
-- **Until the store is set up**, `storeId` and `productId` in `billing-config.ts` are empty: the buy buttons are hidden, Settings offers invoice licences, and Lemon Squeezy keys are refused without a request.
+- **Until the service is deployed**, `serviceUrl` in `src/lib/billing-config.ts` is empty: the buy buttons are hidden and Settings offers invoice licences only. Deploy steps: `service/README.md`.
 
 ### 9.3 Plans and pricing
 
@@ -461,10 +463,10 @@ The Chrome Web Store no longer handles payments. Lemon Squeezy was chosen (D13) 
 
 **Pro price (per user):**
 
-| Billing | Price | Lemon Squeezy variant |
+| Billing | Price | Stripe price |
 |---|---|---|
-| Monthly | £4 per month | Monthly subscription, with licence keys |
-| Annual | £40 per year (two months free) | Yearly subscription, with licence keys |
+| Monthly | £4 per month, VAT included | `price_1UcQm5QeMXeU9ocQ5MDGzuu9` |
+| Annual | £40 per year (two months free), VAT included | `price_1UcQm6QeMXeU9ocQ92CxjzLf` |
 
 - A 14-day Pro trial is available, run on the device (§9.7).
 - For comparison (November 2026): Hunchly Classic is $169 / €149 per year (about £128) with a 30-day trial and no free plan. Forensic OSINT Essential is $197 per year.
@@ -489,14 +491,14 @@ The Chrome Web Store no longer handles payments. Lemon Squeezy was chosen (D13) 
 Because there is no server, paywall checks run in the client and a determined user could bypass them. That is accepted for v1. Paid value that can be enforced server-side, such as cloud signing or sync, would need a backend, which is deliberately out of scope for the local-only v1.
 
 ### 9.5 What billing transmits
-The checkout happens on Lemon Squeezy's pages: the buyer gives Lemon Squeezy their email address and payment details, which the extension never sees. The extension itself sends Lemon Squeezy only the licence key, the activation ID for this computer, and (on activation) a label naming the browser and operating system. **No case data, visit history or captures.** Users who never paste a subscription key send nothing. Invoice licences (§9.6) send nothing at all. This is reflected in `PRIVACY.md`.
+The checkout happens on Stripe's pages: the buyer gives Stripe their email address and payment details, which the extension never sees. The extension itself sends only the subscription licence key to Civil Digital's licence service, about once a day; the key holds the buyer's email, name and Stripe subscription ID, which Stripe and Civil Digital already have. The service passes nothing on except a lookup of that subscription at Stripe. **No case data, visit history or captures.** Users who never paste a subscription key send nothing. Invoice licences (§9.6) send nothing at all. This is reflected in `PRIVACY.md`.
 
 ### 9.6 Invoice licences (organisations)
 Organisations can pay Civil Digital by invoice or purchase order instead of by card. Civil Digital then sets up their users.
 
 - **Licence key:** Civil Digital issues each user a signed licence key. It is the RFC 8785 canonical JSON of `{schema: "evicap.licence/1", licenceId, org, email, plan: "pro", issuedAtUtc, expiresAtUtc}`, signed with Civil Digital's ECDSA P-256 licence-signing key and encoded as text the user can paste. The matching public key is bundled in the extension.
 - **Activation:** the user pastes the key into Settings → Plan. EviCap checks the signature and expiry on the device. **No network request is made**, so this route sends nothing off the device, not even billing traffic.
-- **Either route unlocks Pro:** a valid licence key or an active Lemon Squeezy subscription key. Settings → Plan shows which one is in use.
+- **Either route unlocks Pro:** an invoice licence key or a subscription key from the licence service. Settings → Plan shows which one is in use.
 - **Expiry:** keys are issued for 12 months. EviCap shows a renewal reminder 30 days before expiry. After expiry, the same rules as a lapsed subscription apply: Pro features switch off, and existing data is never locked (principle 5).
 - **Issuing:** Civil Digital runs a small offline script (`tools/issue-licence`, in this repo) to sign keys. The private key never ships in the extension. Keep it offline and backed up; if it leaks, anyone can make keys, and the bundled public key must be replaced in an update.
 - **Limits:** without a server, EviCap can't check a key against other installs or revoke it early. Issue one key per user, so a shared key can be traced to its licence, and rely on the 12-month expiry instead of revocation (as accepted in §9.4).
@@ -513,10 +515,10 @@ Organisations can pay Civil Digital by invoice or purchase order instead of by c
 - **UI:** Settings → Plan (plan, usage, trial, licence key, prices, contact for invoices); a Free/Pro marker in the dashboard top bar; Pro markers on the picker and tab-recording buttons; renewal and trial-ending banners; an onboarding step about the plans.
 - **Audit:** every plan change (licence activated, replaced or removed, trial started, expiry noticed by the 6-hourly `plan-check` alarm) writes `licence.changed` to each open case. Closed cases are left as they were.
 
-- **Subscriptions** (`src/lib/billing.ts`): Lemon Squeezy activation, daily checks, the product check, the 14-day grace, removal, and the buy and manage links, as in §9.2. Tested against a fake Lemon Squeezy server; e2e builds read its address from `chrome.storage.local`, and production builds ignore it.
+- **Subscriptions:** the licence service (`service/src/index.ts`) and the extension side (`src/lib/billing.ts`, `src/lib/plan-sw.ts`), as in §9.2. The service is unit-tested against a fake Stripe API; the extension is tested end to end against a fake service, whose address e2e builds read from `chrome.storage.local` (production builds ignore it).
 
 **Not done (needs Civil Digital):**
-- **Set up the Lemon Squeezy store** (§18 item 0) and fill in `src/lib/billing-config.ts`. Online purchase stays hidden until then.
+- **Deploy the licence service** (§18 item 0) and set `serviceUrl`. Online purchase stays hidden until then.
 - **Branded reports** (organisation name and logo on the PDF). The report builder already accepts branding; the setting and the Pro check are still to add.
 
 ## 10. Network rules (no outbound data except billing and opt-in timestamps)
@@ -527,7 +529,7 @@ The extension may make network requests only of these kinds:
 
 | # | Destination | Purpose | What is sent |
 |---|---|---|---|
-| 1 | `api.lemonsqueezy.com` | Activate, check and release a subscription licence key | The key, this computer's activation ID and a browser/OS label, only after the user pastes a subscription key. (Checkout runs on Lemon Squeezy's own pages, opened as an ordinary tab.) |
+| 1 | Civil Digital's licence service (Cloudflare Worker) | Renew a subscription licence key | The key only, about once a day, and only after the user pastes a subscription key. (Checkout runs on Stripe's own pages, opened as an ordinary tab.) |
 | 2 | `freetsa.org` (**opt-in, off by default**) | Trusted timestamp (§7.5) | A SHA-256 hash and a random nonce only |
 | 3 | The websites the user is viewing | Re-fetch the original bytes of pages, images and video the user chose to capture (accepted, D5) | Only the ordinary request a browser sends to view the item. No case data, logs or captures are sent. |
 
@@ -535,7 +537,7 @@ The extension may make network requests only of these kinds:
 - No analytics, telemetry, crash reporting, remote config, remote code, ad SDKs, font/CDN loads, update pings or uninstall URLs. All code and assets are bundled (also required by MV3).
 - No other third-party services, including backup or sync.
 - The extension-page CSP sets `connect-src 'self' https: http:`. It cannot be narrower, because the service worker re-fetches originals from whichever site the user is capturing (row 3), and the extension CSP also governs the service worker. The narrow list is enforced in code instead: `src/lib/net.ts` is the only module in the extension's own contexts that requests site content, and the in-page media script (which runs as the page) is the only other place a request is made.
-- A unit test (`tests/media.test.ts`) fails on any `fetch`/`XMLHttpRequest`/`WebSocket`/`sendBeacon`/`EventSource` use outside those two modules and `src/lib/billing.ts` (Lemon Squeezy). FreeTSA calls will be added to the allow-list as their own module.
+- A unit test (`tests/media.test.ts`) fails on any `fetch`/`XMLHttpRequest`/`WebSocket`/`sendBeacon`/`EventSource` use outside those two modules and `src/lib/billing.ts` (the licence service). FreeTSA calls will be added to the allow-list as their own module.
 - An E2E test runs the extension through a recording proxy and fails on any request to a host not on the list above.
 
 ## 11. Security and data protection
@@ -604,7 +606,7 @@ Chrome on Android has no extension support, and Safari on iOS lacks `webRequest`
 | **M2 — Media** | F6, F7-A, F7-C, media picker |
 | **M3 — Forensic & auto capture** | F3, F4 (WACZ), replay viewer |
 | **M4 — Export & verify** | F10, F11, report HTML/PDF |
-| **M5 — Billing & launch** | Done: Lemon Squeezy subscription keys, invoice licence keys and the issuing script, local trial, plan gating, onboarding. Still to do: the Lemon Squeezy store (§18 item 0), branded reports, store listing submission, privacy policy hosting |
+| **M5 — Billing & launch** | Done: Stripe Managed Payments products and Payment Links, the licence service, subscription and invoice licence keys, local trial, plan gating, onboarding. Still to do: deploy the licence service (§18 item 0), branded reports, store listing submission, privacy policy hosting |
 | **v1.x** | F7-B (HLS/DASH), selectors, search, annotations, trusted timestamps (FreeTSA), case encryption, Firefox build, social-media capture recipes (auto-expand comments, timeline scroll) |
 | **v2** | Mobile app, zkTLS research. Anything else that sends data off the device (team sync, server-side signing) needs a change to the network rules (§10) first. |
 
@@ -614,9 +616,9 @@ Chrome on Android has no extension support, and Safari on iOS lacks `webRequest`
 | D1 | **Publisher:** Civil Digital. Contact: info@civildigital.co.uk. No postal address is published. The product name is EviCap. |
 | D2 | **Data loss:** saving cases as files in a folder on the user's computer is acceptable. The disk mirror is optional, offered during onboarding, and not separately encrypted (§5.2, §11.1). |
 | D3 | **Outbound data:** none, except billing and opt-in trusted timestamping through FreeTSA, which sends a hash only (§7.5, §10). |
-| D4 | **Billing connection:** none until the user pastes a subscription licence key (§9.2). Buying happens on Lemon Squeezy's own pages, and the trial runs on the device. |
+| D4 | **Billing connection:** none until the user pastes a subscription licence key (§9.2). Buying happens on Stripe's own pages, and the trial runs on the device. |
 | D5 | **Re-fetching originals** from the websites being captured is acceptable (§10). |
-| D6 | **VAT:** Civil Digital is not VAT-registered. Lemon Squeezy, as merchant of record, handles VAT and sales tax on card sales (D13). |
+| D6 | **VAT:** Civil Digital is not VAT-registered. Stripe, as merchant of record under Managed Payments, handles VAT and sales tax on card sales (D13). Prices include VAT. |
 | D7 | **Auto-capture** is on by default (F3). |
 | D8 | **Hashing:** SHA-256 only. No MD5 or SHA-1 (§7.1). |
 | D9 | **Trusted timestamping** is a Pro feature, off by default (§9.3). |
@@ -624,8 +626,8 @@ Chrome on Android has no extension support, and Safari on iOS lacks `webRequest`
 | D11 | **Invoice payments:** organisations can pay Civil Digital by invoice, and Civil Digital sets up their users with offline licence keys (§9.6). |
 
 | D12 | **No volume discounts.** Invoiced organisations pay the same per-user price. |
-| D13 | **Card billing:** Lemon Squeezy, through its License API, with no third-party code bundled (§9.1). Chosen over ExtensionPay, whose client library is copyleft. The trial runs on the device. |
+| D13 | **Card billing:** Stripe Managed Payments with Payment Links, plus Civil Digital's licence service for keys (§9.1). Lemon Squeezy (being merged into Stripe) and ExtensionPay (copyleft library) were considered first. The trial runs on the device. |
 
 ## 18. Open questions
-0. **Lemon Squeezy store (blocks online sales).** Civil Digital to create the store (with payouts set up), an *EviCap Pro* product with monthly (£4) and yearly (£40) subscription variants, licence keys turned on, and an activation limit (suggested: 2). Then fill in `src/lib/billing-config.ts`: store ID, product ID, the two checkout links and the customer portal address.
-1. **Fees:** check Lemon Squeezy's current fees. At £4 a month, fixed per-payment card fees take a larger share than on the annual plan.
+0. **Deploy the licence service (blocks online sales).** In Stripe, create a restricted key with read access to Checkout Sessions and Subscriptions. Deploy `service/` to Cloudflare with that key and the service signing key as secrets (`service/README.md`). Then point both Payment Links' confirmation at `https://<service>/success?session_id={CHECKOUT_SESSION_ID}` and set `serviceUrl` in `src/lib/billing-config.ts`.
+1. **Fees:** Managed Payments adds a fee on top of Stripe's card fees; check the current rate. At £4 a month, fixed per-payment fees take a larger share than on the annual plan.
