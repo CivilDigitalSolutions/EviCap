@@ -57,16 +57,16 @@ Email info@civildigital.co.uk.
 
 | Asset | Size | Status | File |
 |---|---|---|---|
-| Store icon | 128×128 PNG | 🟡 Check it has the 16 px transparent padding the store asks for | `public/icon/128.png` |
-| Screenshot 1: case dashboard with a visit log | 1280×800 | ⬜ Not created | |
-| Screenshot 2: popup and side panel while recording | 1280×800 | ⬜ Not created | |
-| Screenshot 3: a forensic capture with its hashes and signature | 1280×800 | ⬜ Not created | |
-| Screenshot 4: export report (PDF) | 1280×800 | ⬜ Not created | |
-| Screenshot 5: offline verifier passing an export | 1280×800 | ⬜ Not created | |
-| Small promo tile | 440×280 | ⬜ Not created | |
-| Marquee promo tile | 1400×560 | ⬜ Optional | |
+| Store icon | 128×128 PNG | ✅ 96 px design with 16 px transparent padding | `store/store-icon-128.png` (same as `public/icon/128.png`) |
+| Screenshot 1: case dashboard with a visit log | 1280×800 | ✅ | `store/screenshot-1-visit-log.png` |
+| Screenshot 2: a shop page with the side panel open while recording | 1280×800 | ✅ | `store/screenshot-2-side-panel.png` |
+| Screenshot 3: a forensic capture with its hashes and signature | 1280×800 | ✅ | `store/screenshot-3-forensic-capture.png` |
+| Screenshot 4: export report (PDF) with branding | 1280×800 | ✅ | `store/screenshot-4-report.png` |
+| Screenshot 5: offline verifier passing an export | 1280×800 | ✅ | `store/screenshot-5-verifier.png` |
+| Small promo tile | 440×280 | ✅ | `store/promo-small-440x280.png` |
+| Marquee promo tile | 1400×560 | ✅ (optional) | `store/promo-marquee-1400x560.png` |
 
-Screenshots should use a made-up case on a test site, with no real people's data and no other companies' logos.
+All images are made by `npm run store:shots` (`tools/store-shots.shots.ts`). It loads the e2e build into Edge and serves a fictional shop on `.example` addresses. The case, the council (Northshire Trading Standards), its logo and the officer are all made up. Run it again after any visible change to the UI. The screenshots are 24-bit PNGs with no transparency, as the store asks.
 
 ## Permission justifications
 

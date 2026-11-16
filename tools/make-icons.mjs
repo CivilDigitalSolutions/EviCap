@@ -51,14 +51,17 @@ function png(size, pixel) {
 const clamp = (v) => Math.max(0, Math.min(1, v));
 const over = (dst, src, a) => dst.map((d, i) => d * (1 - a) + src[i] * a);
 
-function icon(size) {
+// pad: transparent border in pixels. The Chrome Web Store asks for a 96 px design
+// inside a 128 px icon (16 px each side); the small toolbar icons are drawn full size.
+function icon(size, pad = 0) {
   const S = 4; // supersampling
+  const inner = size - 2 * pad;
   return png(size, (px, py) => {
     let acc = [0, 0, 0, 0];
     for (let sy = 0; sy < S; sy++)
       for (let sx = 0; sx < S; sx++) {
-        const x = (px + (sx + 0.5) / S) / size;
-        const y = (py + (sy + 0.5) / S) / size;
+        const x = (px - pad + (sx + 0.5) / S) / inner;
+        const y = (py - pad + (sy + 0.5) / S) / inner;
         // Rounded square
         const r = 0.2;
         const dx = Math.max(Math.abs(x - 0.5) - (0.5 - r), 0);
@@ -81,7 +84,7 @@ function icon(size) {
 }
 
 mkdirSync('public/icon', { recursive: true });
-for (const s of [16, 32, 48, 128]) writeFileSync(`public/icon/${s}.png`, icon(s));
+for (const s of [16, 32, 48, 128]) writeFileSync(`public/icon/${s}.png`, icon(s, s === 128 ? 16 : 0));
 console.log('Wrote public/icon/{16,32,48,128}.png');
 void clamp;
 void over;

@@ -24,7 +24,7 @@ Built so far (spec milestones M0 to M5):
 - Popup, side panel, dashboard, onboarding, settings
 - Plans: Free limits and Pro features enforced on the device, a 14-day trial that sends nothing, card subscriptions through Stripe Managed Payments with Civil Digital's licence service (`service/`), and signed offline licence keys for invoiced organisations
 
-Still to do before launch: a first live purchase test (SPEC §18), store screenshots, and submitting to the Chrome Web Store and Edge Add-ons. Everything the store dashboard asks for (listing text, permission justifications, privacy answers) is in `CHROMEWEBSTORE.md`; `npm run zip` makes the upload.
+Still to do before launch: a first live purchase test (SPEC §18) and submitting to the Chrome Web Store and Edge Add-ons. Everything the store dashboard asks for (listing text, permission justifications, privacy answers) is in `CHROMEWEBSTORE.md`; `npm run zip` makes the upload, and `npm run store:shots` remakes the screenshots and promo tiles in `store/`.
 
 ## Licence keys
 
