@@ -18,9 +18,16 @@ export interface ExportManifest {
   software: { name: string; version: string };
   environment: Record<string, unknown>;
   case: { id: string; name: string; reference: string; investigator: string; organisation: string; status: string };
-  publicKey: { file: 'public-key.jwk'; fingerprint: Sha256 };
+  /**
+   * Where the data files are. Exports made before this field existed keep
+   * everything at the top level, with captures in `captures/<id>/`.
+   */
+  layout?: { technical: string; startHere: string };
+  /** Path of the public key from the top of the export. */
+  publicKey: { file: string; fingerprint: Sha256 };
   auditHead: { seq: number; hash: Sha256 | null; redactedEvents: number };
-  captures: { id: string; exhibit: string; captureHash: Sha256 | null }[];
+  /** `folder`: where the capture's files are; older exports use `captures/<id>`. */
+  captures: { id: string; exhibit: string; folder?: string; captureHash: Sha256 | null }[];
   reportPdf: string;
   files: { path: string; bytes: number; sha256: Sha256 }[];
 }
@@ -44,25 +51,52 @@ export async function zipSource(file: Blob & { name?: string }): Promise<BundleS
   };
 }
 
-/** Files picked as a folder (an unzipped export). The top folder name is removed. */
+/**
+ * Files picked as a folder (an unzipped export). The top folder name is
+ * removed; verifyBundle then finds the export inside it, however deep.
+ */
 export function folderSource(files: (File & { webkitRelativePath?: string })[]): BundleSource {
   const map = new Map<string, File>();
   for (const f of files) {
     const rel = (f.webkitRelativePath || f.name).replace(/\\/g, '/');
     map.set(rel.includes('/') ? rel.slice(rel.indexOf('/') + 1) : rel, f);
   }
-  // A folder that contains the export one level down (e.g. "Downloads/EviCap_…/").
-  if (!map.has('manifest.json')) {
-    const nested = [...map.keys()].find((k) => k.endsWith('/manifest.json') && k.split('/').length === 2);
-    if (nested) {
-      const prefix = nested.slice(0, nested.indexOf('/') + 1);
-      for (const [k, v] of [...map]) {
-        map.delete(k);
-        if (k.startsWith(prefix)) map.set(k.slice(prefix.length), v);
-      }
-    }
-  }
   return { name: 'folder', paths: [...map.keys()], open: async (p) => map.get(p) ?? null };
+}
+
+/** The same source seen from one of its folders: paths outside it are left out. */
+function within(src: BundleSource, prefix: string): BundleSource {
+  if (!prefix) return src;
+  return { name: src.name, paths: src.paths.filter((p) => p.startsWith(prefix)).map((p) => p.slice(prefix.length)), open: (p) => src.open(prefix + p) };
+}
+
+/**
+ * Find the export in what was chosen: the export itself, a folder holding it
+ * (e.g. Downloads with the unzipped export inside), or a ZIP of the folder.
+ * The export manifest sits beside public-key.jwk, either at the top (older
+ * exports) or in the technical folder its own `layout` names.
+ */
+export async function locateExport(src: BundleSource): Promise<{ src: BundleSource; dir: string; manifest: ExportManifest } | null> {
+  const paths = new Set(src.paths);
+  const dirs = src.paths
+    .filter((p) => p === 'manifest.json' || p.endsWith('/manifest.json'))
+    .map((p) => p.slice(0, -'manifest.json'.length))
+    .filter((d) => paths.has(`${d}public-key.jwk`))
+    .sort((a, b) => a.split('/').length - b.split('/').length);
+  for (const d of dirs) {
+    let m: ExportManifest;
+    try {
+      m = JSON.parse((await text(src, `${d}manifest.json`)) ?? 'null');
+    } catch {
+      continue;
+    }
+    if (m?.schema !== 'evicap.export/1') continue;
+    const techDir = typeof m.layout?.technical === 'string' ? `${m.layout.technical}/` : '';
+    if (!d.endsWith(techDir)) continue;
+    const root = d.slice(0, d.length - techDir.length);
+    return { src: within(src, root), dir: techDir, manifest: m };
+  }
+  return null;
 }
 
 export type Status = 'pass' | 'fail' | 'warn';
@@ -112,7 +146,7 @@ async function verifySig(key: CryptoKey, value: unknown, sig: string): Promise<b
   }
 }
 
-export async function verifyBundle(src: BundleSource, onProgress?: (done: number, total: number) => void): Promise<VerifyReport> {
+export async function verifyBundle(chosen: BundleSource, onProgress?: (done: number, total: number) => void): Promise<VerifyReport> {
   const checks: Check[] = [];
   const files: FileResult[] = [];
   const fail = (label: string, detail?: string) => checks.push({ label, status: 'fail', detail });
@@ -131,25 +165,21 @@ export async function verifyBundle(src: BundleSource, onProgress?: (done: number
   }
 
   // 1. The export manifest.
-  let manifest: ExportManifest;
-  try {
-    const raw = await text(src, 'manifest.json');
-    if (raw === null) {
-      fail('Export manifest', 'manifest.json is missing. Choose the EviCap export ZIP, or the folder it was unzipped to.');
-      return done(null);
-    }
-    manifest = JSON.parse(raw);
-    if (manifest.schema !== 'evicap.export/1') throw new Error(`unknown schema ${String(manifest.schema)}`);
-  } catch (err) {
-    fail('Export manifest', `manifest.json could not be read: ${(err as Error).message}`);
+  const found = await locateExport(chosen);
+  if (!found) {
+    fail(
+      'Export manifest',
+      'This is not an EviCap export, or its manifest.json is missing or damaged. Choose the ZIP file you were sent, or the folder it was unzipped to.',
+    );
     return done(null);
   }
+  const { src, dir, manifest } = found;
   pass('Export manifest', `${manifest.files.length} files listed`);
 
   // 2. Key and signature.
   let key: CryptoKey | null = null;
   try {
-    const jwk = JSON.parse((await text(src, 'public-key.jwk')) ?? 'null');
+    const jwk = JSON.parse((await text(src, `${dir}public-key.jwk`)) ?? 'null');
     if (!jwk) throw new Error('public-key.jwk is missing');
     key = await crypto.subtle.importKey('jwk', jwk, { name: 'ECDSA', namedCurve: 'P-256' }, true, ['verify']);
     const fp = await sha256(await crypto.subtle.exportKey('spki', key));
@@ -158,7 +188,7 @@ export async function verifyBundle(src: BundleSource, onProgress?: (done: number
   } catch (err) {
     fail('Public key', (err as Error).message);
   }
-  const sig = await text(src, 'manifest.sig');
+  const sig = await text(src, `${dir}manifest.sig`);
   if (!key) fail('Manifest signature', 'No public key to check it with.');
   else if (sig === null) fail('Manifest signature', 'manifest.sig is missing.');
   else if (await verifySig(key, manifest, sig)) pass('Manifest signature', 'The manifest was signed by this key and has not changed since.');
@@ -181,14 +211,14 @@ export async function verifyBundle(src: BundleSource, onProgress?: (done: number
   const bad = files.filter((f) => f.status === 'fail');
   if (bad.length === 0) pass('File hashes', `All ${files.length} files match their SHA-256 hashes.`);
   else fail('File hashes', `${bad.length} of ${files.length} files are missing or changed: ${bad.slice(0, 5).map((f) => f.path).join(', ')}${bad.length > 5 ? '…' : ''}`);
-  const listed = new Set([...manifest.files.map((f) => f.path), 'manifest.json', 'manifest.sig']);
+  const listed = new Set([...manifest.files.map((f) => f.path), `${dir}manifest.json`, `${dir}manifest.sig`]);
   const extra = src.paths.filter((p) => !listed.has(p) && !p.endsWith('/'));
   if (extra.length) warn('Unlisted files', `${extra.length} file(s) not covered by the manifest: ${extra.slice(0, 5).join(', ')}`);
 
   // 4. The audit chain.
   let events: ExportedEvent[] = [];
   try {
-    events = ((await text(src, 'audit-log.jsonl')) ?? '')
+    events = ((await text(src, `${dir}audit-log.jsonl`)) ?? '')
       .split('\n')
       .filter((l) => l.trim())
       .map((l) => JSON.parse(l));
@@ -209,7 +239,8 @@ export async function verifyBundle(src: BundleSource, onProgress?: (done: number
   let capOk = 0;
   for (const c of manifest.captures) {
     const label = `Capture ${c.exhibit}`;
-    const raw = await text(src, `captures/${c.id}/manifest.json`);
+    const folder = c.folder ?? `captures/${c.id}`;
+    const raw = await text(src, `${folder}/manifest.json`);
     if (raw === null) {
       fail(label, 'Its manifest.json is missing.');
       continue;
@@ -217,10 +248,10 @@ export async function verifyBundle(src: BundleSource, onProgress?: (done: number
     const m = JSON.parse(raw) as { files: { path: string; sha256: Sha256 }[] };
     const problems: string[] = [];
     if ((await sha256Json(m)) !== c.captureHash) problems.push('its manifest does not match the capture hash');
-    const csig = await text(src, `captures/${c.id}/manifest.sig`);
+    const csig = await text(src, `${folder}/manifest.sig`);
     if (!key || csig === null || !(await verifySig(key, m, csig))) problems.push('its manifest signature does not check');
     for (const f of m.files) {
-      const got = actualByPath.get(`captures/${c.id}/${f.path}`);
+      const got = actualByPath.get(`${folder}/${f.path}`);
       if (got !== f.sha256) problems.push(`${f.path} does not match its capture manifest`);
     }
     const ev = events.find((e) => e.payload && e.payload.captureId === c.id && (e.type === 'capture.created' || e.type === 'artefact.derived'));

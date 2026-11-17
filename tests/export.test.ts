@@ -148,6 +148,36 @@ describe('export helpers', () => {
     expect(utcText('2026-11-16T10:42:07.123Z')).toBe('16 Nov 2026, 10:42:07 UTC');
   });
 
+  it('names the checker and the exhibit folder in the report', () => {
+    const exhibit = {
+      exhibit: 'EV-001',
+      capture: { id: 'c1', type: 'screenshot', method: 'x', meta: {}, url: 'https://a.example/', title: 'A', startedAtUtc: '2026-11-16T10:00:00Z', completedAtUtc: null, files: [], degraded: [], tags: [], status: 'complete', captureHash: null, deleted: null } as unknown as CaptureRecord,
+      thumb: null,
+      notes: [],
+      parentExhibit: null,
+      folder: 'Exhibits/EV-001 - Screenshot - A',
+    };
+    const html = buildReportHtml({
+      exportId: 'e1',
+      kind: 'case',
+      createdAtUtc: '2026-11-16T10:00:00.000Z',
+      software: { name: 'EviCap', version: '0.1.0' },
+      environment: { extension: '0.1.0', browser: 'Edge 157', os: 'Windows', userAgent: 'UA', tz: 'Europe/London', tzOffsetMinutes: 0 },
+      case: { name: 'C', reference: '', investigator: '', organisation: '', description: '', status: 'open', createdAtUtc: '2026-11-01T00:00:00Z', closedAtUtc: null } as CaseRecord,
+      fingerprint: 'sha256:ff',
+      auditHead: { seq: 0, hash: 'sha256:ee' },
+      auditEvents: 1,
+      redactedEvents: 0,
+      eventCounts: {},
+      exhibits: [exhibit],
+      visits: [],
+      caseNotes: [],
+    });
+    expect(html).toContain('Exhibits/EV-001 - Screenshot - A');
+    expect(html).toContain('3 - Check nothing has been changed.html');
+    expect(html).not.toContain('verify.html');
+  });
+
   it('bundles the verifier into one file with no external references', async () => {
     const { html } = await buildVerifierHtml();
     expect(html).not.toMatch(/<script[^>]+src=/i);

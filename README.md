@@ -18,7 +18,7 @@ Built so far (spec milestones M0 to M5):
 - Automatic capture: every logged page saved as MHTML with its text and a screenshot, linked to its visit; unchanged pages link to the earlier capture; large pages skipped and logged
 - Forensic capture: one click (or reload and capture) records the page's network traffic, TLS certificate, full-page screenshot, MHTML, rendered DOM, source and links, packaged as a WACZ web archive; an offline, script-free snapshot view in the dashboard
 - Export: one ZIP per case (or selected exhibits) with every file, the visit log (CSV and JSON), notes, the audit log, a report in HTML and PDF, and a signed manifest of every file's SHA-256; the export's own hash goes in the audit log
-- Verification: an offline verify.html in every export, a Verify page in the dashboard, and a whole-case check; exhibit-only exports keep the audit chain checkable while leaving out unrelated sites
+- Verification: an offline checker ("3 - Check nothing has been changed.html") in every export, beside a plain-English "1 - START HERE" page, a Verify page in the dashboard, and a whole-case check; exhibit-only exports keep the audit chain checkable while leaving out unrelated sites
 - Disk mirror: optional copy of every case to a folder the user picks, re-hashed after writing
 - Notes (with version history) and tags
 - Popup, side panel, dashboard, onboarding, settings

@@ -16,7 +16,11 @@ function render(r: VerifyReport) {
   out.innerHTML = `
     <div class="verdict ${r.ok ? 'pass' : 'fail'}">
       <strong>${r.ok ? 'Verified' : 'Verification failed'}</strong>
-      <span>${r.ok ? 'Every file matches its hash, the signatures check and the audit chain is unbroken.' : 'One or more checks failed. See the details below.'}</span>
+      <span>${
+        r.ok
+          ? 'Nothing has been changed. Every file matches its hash, the signatures check and the audit chain is unbroken.'
+          : 'Something is missing or has been changed since the export was made. See the details below.'
+      }</span>
     </div>
     ${
       m

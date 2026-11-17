@@ -8,6 +8,7 @@ import { chromium, type BrowserContext, type Page, type Worker } from 'playwrigh
 import { afterAll, beforeAll, it } from 'vitest';
 import { testLicenceKey } from '../tests/e2e/licence';
 import { BRAND, MARK_ON_DARK, markSvg } from '../src/lib/brand';
+import { LAYOUT, tech } from '../src/lib/export-layout';
 import type { AuditEvent, CaptureRecord } from '../src/lib/types';
 
 /**
@@ -321,11 +322,11 @@ it('makes the store screenshots and promo tiles', async () => {
   const zip = await opfsFile(path);
   const zipPath = join(work, fileName);
   writeFileSync(zipPath, zip);
-  const files = unzipSync(zip, { filter: (f) => f.name === 'report.html' || f.name === 'verify.html' });
+  const files = unzipSync(zip, { filter: (f) => f.name === tech('report.html') || f.name === LAYOUT.verifier });
 
   // 4: the report's first page, as it prints (A4 at 96 dpi is 794 px wide).
   const reportPath = join(work, 'report.html');
-  writeFileSync(reportPath, strFromU8(files['report.html']!));
+  writeFileSync(reportPath, strFromU8(files[tech('report.html')]!));
   const rep = await newPage(794, 1123);
   await rep.emulateMedia({ media: 'print' });
   await rep.goto(pathToFileURL(reportPath).href);
@@ -343,7 +344,7 @@ it('makes the store screenshots and promo tiles', async () => {
 
   // 5: the offline verifier from the export, opened from disk, passing it.
   const verifyPath = join(work, 'verify.html');
-  writeFileSync(verifyPath, strFromU8(files['verify.html']!));
+  writeFileSync(verifyPath, strFromU8(files[LAYOUT.verifier]!));
   const ver = await newPage();
   await ver.goto(pathToFileURL(verifyPath).href);
   await ver.locator('#zip').setInputFiles(zipPath);

@@ -7,6 +7,7 @@ import { chromium, type BrowserContext, type Page, type Worker } from 'playwrigh
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { testLicenceKey } from './licence';
 import { sha256 } from '../../src/lib/hash';
+import { LAYOUT, tech } from '../../src/lib/export-layout';
 import type { AuditEvent, CaptureRecord } from '../../src/lib/types';
 import { readZipEntries, zipEntryBlob } from '../../src/lib/zip';
 import { verifyBundle, zipSource, type ExportManifest } from '../../src/verifier/core';
@@ -164,23 +165,42 @@ describe('Export and verification', () => {
 
     const blob = blobOf(zip);
     const names = (await readZipEntries(blob)).map((e) => e.name);
-    for (const n of ['manifest.json', 'manifest.sig', 'public-key.jwk', 'audit-log.jsonl', 'visits.csv', 'visits.json', 'notes.json', 'case.json', 'captures.json', 'report.html', 'report.pdf', 'verify.html'])
-      expect(names).toContain(n);
-    const manifest = JSON.parse((await entryText(blob, 'manifest.json'))!) as ExportManifest;
+    // A reader sees only the numbered files and two folders at the top.
+    const top = [...new Set(names.map((n) => n.split('/')[0]))].sort();
+    expect(top).toEqual([LAYOUT.startHere, LAYOUT.reportPdf, LAYOUT.verifier, LAYOUT.exhibits, LAYOUT.technical].sort());
+    expect(names[0]).toBe(LAYOUT.startHere);
+    for (const n of ['manifest.json', 'manifest.sig', 'public-key.jwk', 'audit-log.jsonl', 'visits.csv', 'visits.json', 'notes.json', 'case.json', 'captures.json', 'report.html'])
+      expect(names).toContain(tech(n));
+    const manifest = JSON.parse((await entryText(blob, tech('manifest.json')))!) as ExportManifest;
     expect(manifest.captures).toHaveLength(4); // three screenshots and one forensic capture
     expect(manifest.reportPdf).toBe('included');
     expect(names.filter((n) => n.endsWith('/page.wacz'))).toHaveLength(1);
+    // Exhibit folders are named for people, e.g. "Exhibits/EV-001 - Screenshot - Page one".
+    expect(manifest.captures.map((c) => c.folder)).toEqual(expect.arrayContaining([`${LAYOUT.exhibits}/EV-001 - Screenshot - Page one`]));
+    expect(names.filter((n) => /^Exhibits\/EV-\d{3} - Web page - Page two\/page\.wacz$/.test(n))).toHaveLength(1);
 
-    const pdf = (await zipEntryBlob(blob, (await readZipEntries(blob)).find((e) => e.name === 'report.pdf')!)).slice(0, 5);
+    // START HERE links to each exhibit's picture, the report and the checker.
+    const start = (await entryText(blob, LAYOUT.startHere))!;
+    expect(start).toContain('href="2%20-%20Evidence%20report.pdf"');
+    expect(start).toContain('href="Exhibits/EV-001%20-%20Screenshot%20-%20Page%20one/screenshot.png"');
+    expect(start).toContain('Open the picture');
+    expect(start).toContain('Open the saved web page');
+    expect(start).not.toMatch(/<script/i);
+    for (const m of start.matchAll(/href="([^"#]+)"/g)) {
+      const target = decodeURIComponent(m[1]!).replace(/\/$/, '');
+      expect(names.some((n) => n === target || n.startsWith(`${target}/`)), target).toBe(true);
+    }
+
+    const pdf = (await zipEntryBlob(blob, (await readZipEntries(blob)).find((e) => e.name === LAYOUT.reportPdf)!)).slice(0, 5);
     expect(await pdf.text()).toBe('%PDF-');
-    const report = (await entryText(blob, 'report.html'))!;
+    const report = (await entryText(blob, tech('report.html')))!;
     expect(report).toContain('Export case');
     expect(report).toContain('A. Tester');
     expect(report).toContain('EV-004');
     expect(report).toContain('Note on exhibit one');
     expect(report).toContain('data:image/jpeg;base64');
     expect(report).not.toMatch(/<script/i);
-    const csv = (await entryText(blob, 'visits.csv'))!;
+    const csv = (await entryText(blob, tech('visits.csv')))!;
     expect(csv.split('\r\n').filter(Boolean)).toHaveLength(4);
 
     // The same checks verify.html runs, here in Node.
@@ -191,7 +211,7 @@ describe('Export and verification', () => {
 
   it('verify.html opened from disk passes the export and catches tampering', async () => {
     const verifyPath = join(work, 'verify.html');
-    writeFileSync(verifyPath, (await entryText(blobOf(zip), 'verify.html'))!);
+    writeFileSync(verifyPath, (await entryText(blobOf(zip), LAYOUT.verifier))!);
     const page = await ctx.newPage();
     const requests: string[] = [];
     page.on('request', (r) => requests.push(r.url()));
@@ -232,11 +252,11 @@ describe('Export and verification', () => {
     expect(p.kind).toBe('exhibits');
     expect(p.captureIds).toHaveLength(1);
     const blob = blobOf(await opfsFile(p.path));
-    const manifest = JSON.parse((await entryText(blob, 'manifest.json'))!) as ExportManifest;
+    const manifest = JSON.parse((await entryText(blob, tech('manifest.json')))!) as ExportManifest;
     expect(manifest.kind).toBe('exhibits');
     expect(manifest.captures.map((c) => c.exhibit)).toEqual(['EV-001']);
     expect(manifest.auditHead.redactedEvents).toBeGreaterThan(0);
-    const log = (await entryText(blob, 'audit-log.jsonl'))!;
+    const log = (await entryText(blob, tech('audit-log.jsonl')))!;
     expect(log).not.toContain('/three');
     expect(log).toContain('/one');
     const r = await verifyBundle(await zipSource(blob));
@@ -269,7 +289,7 @@ describe('Export and verification', () => {
   const LOGO_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
   const reportOf = async (ev: AuditEvent) => {
     const blob = blobOf(await opfsFile((ev.payload as { path: string }).path));
-    return { html: (await entryText(blob, 'report.html'))!, pdf: await entryText(blob, 'report.pdf') };
+    return { html: (await entryText(blob, tech('report.html')))!, pdf: await entryText(blob, LAYOUT.reportPdf) };
   };
 
   it('puts Pro branding set in Settings on the report, and logs the change with the logo hash', async () => {

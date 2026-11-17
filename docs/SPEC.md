@@ -270,21 +270,27 @@ Many sites stream video rather than serving a single file, so EviCap supports th
 
 ### F10 — Export and reporting (P0)
 
-**Case export** produces one `.zip` with this layout:
+**Case export** produces one `.zip`. Many recipients are not technical, so the top level holds only what a reader needs, numbered in the order to open it; everything else is in one folder labelled as safe to ignore. The names live in `src/lib/export-layout.ts`.
 
 ```
 EviCap_<case-ref>_<UTC timestamp>.zip
-├── manifest.json            # every file, size, SHA-256
-├── manifest.sig             # signature over JCS(manifest.json)
-├── public-key.jwk           # install public key
-├── audit-log.jsonl          # full hash-chained audit log
-├── timestamps/              # FreeTSA tokens (.tsr) and certificates, if timestamping is on
-├── visits.csv / visits.json
-├── captures/<capture-id>/…  # WACZ, PNG, MHTML, images, videos, sidecar JSON
-├── report.html              # human-readable report
-├── report.pdf               # same, printed to PDF
-└── verify.html              # offline verifier (no network)
+├── 1 - START HERE.html                     # plain-English guide: what to open, every exhibit with "Open the picture" etc.
+├── 2 - Evidence report.pdf                 # the report (2 - Evidence report.html if printing failed)
+├── 3 - Check nothing has been changed.html # offline verifier (no network)
+├── Exhibits/
+│   └── EV-001 - Screenshot - <page title>/ # one folder per exhibit: its files, manifest.json, manifest.sig
+└── Technical files (you can ignore these)/
+    ├── manifest.json / manifest.sig        # every file, size, SHA-256; signature over JCS(manifest.json)
+    ├── public-key.jwk                      # install public key
+    ├── audit-log.jsonl                     # full hash-chained audit log
+    ├── visits.csv / visits.json
+    ├── case.json / captures.json / notes.json
+    ├── report.html                         # the report as a web page
+    └── timestamps/                         # FreeTSA tokens and certificates, if timestamping is on
 ```
+
+- **START HERE** (`src/lib/start-here.ts`) is script-free like the report. It has three numbered steps (read the report, look at the exhibits, optionally check nothing has changed), a card per exhibit with a thumbnail and buttons linking straight to the files a reader can open (picture, video, saved MHTML page, page text; never the WACZ or JSON), a table of what each item at the top level is, and a notice telling anyone who opened it from inside the ZIP to use **Extract All** first.
+- **Exhibit folder names** are the exhibit number, a one-word kind (Screenshot, Video, Image, Web page) and the page title (or the site if the title has no usable characters), cut to plain ASCII without characters Windows or ZIP tools reject, so paths stay short and open everywhere. File names inside the folder are unchanged, because each capture's signed manifest names them.
 
 - **The report includes:** case details, investigator, environment, a summary of what EviCap does and does not prove, a visit log table, an exhibit index (each capture with thumbnail, URL, UTC time, method and SHA-256), notes, selector hits, the audit chain head hash, and any trusted timestamps (capture time and TSA time side by side).
 - **Exhibit-only export:** selected captures only, with the same manifest, signature and verifier.
@@ -295,12 +301,13 @@ EviCap_<case-ref>_<UTC timestamp>.zip
 - The export runs in the dashboard and streams into a ZIP in OPFS (`exports/<exportId>/`), so large cases are never held in memory. EviCap writes the ZIP itself: entries are stored uncompressed (evidence files are mostly compressed already, and stored entries can be checked one by one), and ZIP64 records are added only when a size or offset needs them, so ordinary exports open in every ZIP tool. Free space is checked first.
 - Also in the ZIP: `case.json`, `captures.json` (every capture record with its exhibit number) and `notes.json` (with version history). `timestamps/` will be added with trusted timestamping.
 - **Exhibit numbers** are stable within a case: top-level captures in time order (EV-001, EV-002…), with related artefacts lettered (EV-001a). They are the same in a whole-case and an exhibit-only export.
-- **Export manifest** (`evicap.export/1`): export id and kind, case details, software and environment, key fingerprint, audit chain head, the captures with their capture hashes and exhibit numbers, whether the PDF is included, and every file's path, size and SHA-256. It is signed like a capture manifest.
+- **Export manifest** (`evicap.export/1`): export id and kind, case details, software and environment, key fingerprint, audit chain head, the captures with their capture hashes, exhibit numbers and folders, whether the PDF is included, `layout` (the technical folder's name), and every file's path, size and SHA-256. It is signed like a capture manifest.
+- **The verifier finds the export** in whatever was chosen: the ZIP, the unzipped folder, or a folder holding it. It looks for a `manifest.json` beside `public-key.jwk` whose own `layout` matches where it sits. Exports made before `layout` existed (everything at the top, captures in `captures/<id>/`) still verify.
 - **Exhibit-only export:** the chosen captures and their related artefacts, the visits and notes about them, and the full audit log in which every unrelated event has `payload: null, redacted: true`. An event's hash covers its payload's hash, not the payload, so the chain still verifies end to end without revealing the other sites visited.
 - `visits.csv` is UTF-8 with a byte-order mark. A cell that starts with `=`, `+`, `-`, `@` or a tab gets a leading apostrophe so spreadsheets don't run it as a formula; `visits.json` keeps the exact values.
 - The PDF is printed from a hidden extension page (`print.html`) with `Page.printToPDF`; the debugging bar shows for a moment. If printing fails, the export still completes, without `report.pdf`, and the manifest says why.
 - Saving uses an ordinary browser download of the file in OPFS, so the `downloads` permission isn't needed. EviCap keeps its copy until the user removes it from **Previous exports**; the record stays in the audit log.
-- `verify.html` is built from the same TypeScript as the dashboard's verifier (`src/verifier`), bundled into one file at build time, with a CSP of `default-src 'none'`.
+- The verifier (`3 - Check nothing has been changed.html`, built as `verify.html`) is built from the same TypeScript as the dashboard's verifier (`src/verifier`), bundled into one file at build time, with a CSP of `default-src 'none'`.
 
 ### F11 — Verification (P0)
 

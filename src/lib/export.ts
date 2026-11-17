@@ -8,7 +8,9 @@ import { getInstallKey, signJson } from './keys';
 import { rpc } from './messages';
 import { isPro, proRequired } from './plan';
 import { capturePath, openWritable, readFile, removePath, writeFile } from './opfs';
+import { exhibitFolder, LAYOUT, tech } from './export-layout';
 import { buildReportHtml, type ReportExhibit } from './report';
+import { buildStartHereHtml } from './start-here';
 import type { AuditEvent, CaptureRecord, VisitRecord } from './types';
 import { nowUtc, uuid } from './util';
 import type { ExportManifest } from '../verifier/core';
@@ -19,6 +21,10 @@ import { ZipWriter } from './zip';
  * from IndexedDB and OPFS, streams a stored ZIP into OPFS under exports/, signs
  * the export manifest, and asks the service worker to print the report to PDF
  * and to record the `export.created` audit event with the ZIP's own hash.
+ *
+ * The layout (src/lib/export-layout.ts) puts readers first: a numbered START
+ * HERE page, the report and the checker at the top, one named folder per
+ * exhibit, and every data file in one folder labelled as safe to ignore.
  */
 
 export interface ExportProgress {
@@ -226,7 +232,8 @@ export async function exportCase(
   const dir = `exports/${exportId}`;
   const zipPath = `${dir}/${fileName}`;
 
-  // Each capture's files, plus its signed manifest.
+  // Each capture's files, plus its signed manifest, in a folder named for the exhibit.
+  const folders = new Map(captures.map((x) => [x.id, exhibitFolder(numbers.get(x.id) ?? '?', x)]));
   const captureFiles: { path: string; src: () => Promise<Blob> }[] = [];
   let totalBytes = 0;
   for (const x of captures) {
@@ -234,7 +241,7 @@ export async function exportCase(
     const names = [...x.files.map((f) => f.path), ...(x.status === 'complete' ? ['manifest.json', 'manifest.sig'] : [])];
     for (const name of names) {
       const p = capturePath(caseId, x.id, name);
-      captureFiles.push({ path: `captures/${x.id}/${name}`, src: () => readFile(p) });
+      captureFiles.push({ path: `${folders.get(x.id)}/${name}`, src: () => readFile(p) });
     }
     totalBytes += x.files.reduce((n, f) => n + f.bytes, 0);
   }
@@ -254,6 +261,7 @@ export async function exportCase(
       thumb,
       notes: notes.filter((n) => n.targetKind === 'capture' && n.targetId === x.id),
       parentExhibit: x.parent ? (numbers.get(x.parent) ?? null) : null,
+      folder: folders.get(x.id)!,
     });
   }
   const eventCounts: Record<string, number> = {};
@@ -286,8 +294,10 @@ export async function exportCase(
     await rpc('printReportPdf', `${dir}/report.html`, `${dir}/report.pdf`, branding?.marking || null);
     pdf = await readFile(`${dir}/report.pdf`);
   } catch (err) {
-    reportPdf = `not included: ${(err as Error).message}. Open report.html and print it to PDF from the browser.`;
+    reportPdf = `not included: ${(err as Error).message}. Open "${LAYOUT.reportHtml}" and print it to PDF from the browser.`;
   }
+  const reportFile = pdf ? LAYOUT.reportPdf : LAYOUT.reportHtml;
+  const startHere = buildStartHereHtml({ kind, exportId, createdAtUtc, software, case: c, exhibits, reportFile, visits: visits.length, branding });
 
   // The ZIP.
   const writable = await openWritable(zipPath);
@@ -320,22 +330,25 @@ export async function exportCase(
     const done = { n: 0 };
     const total = captureFiles.length + 10;
     const step = (stage: string) => onProgress({ stage, done: done.n++, total });
-    step('Writing the case files');
-    await add('case.json', json(c));
-    await add('captures.json', json(captures.map((x) => ({ exhibit: numbers.get(x.id) ?? null, ...x }))));
-    await add('visits.json', json(visits));
-    await add('visits.csv', visitsCsv(visits));
-    await add('notes.json', json(notes));
-    await add('audit-log.jsonl', exportedEvents.map((e) => JSON.stringify(e)).join('\n') + (exportedEvents.length ? '\n' : ''));
-    await add('public-key.jwk', json(key.publicJwk));
+    // What a reader opens, at the top level, first.
+    step('Adding the report and checker');
+    await add(LAYOUT.startHere, startHere);
+    if (pdf) await add(LAYOUT.reportPdf, pdf);
+    else await add(LAYOUT.reportHtml, reportHtml);
+    await add(LAYOUT.verifier, verifierHtml);
     for (const f of captureFiles) {
       step(`Adding ${f.path}`);
       await add(f.path, await f.src());
     }
-    step('Adding the report and verifier');
-    await add('report.html', reportHtml);
-    if (pdf) await add('report.pdf', pdf);
-    await add('verify.html', verifierHtml);
+    step('Writing the technical files');
+    await add(tech('case.json'), json(c));
+    await add(tech('captures.json'), json(captures.map((x) => ({ exhibit: numbers.get(x.id) ?? null, folder: folders.get(x.id), ...x }))));
+    await add(tech('visits.json'), json(visits));
+    await add(tech('visits.csv'), visitsCsv(visits));
+    await add(tech('notes.json'), json(notes));
+    await add(tech('audit-log.jsonl'), exportedEvents.map((e) => JSON.stringify(e)).join('\n') + (exportedEvents.length ? '\n' : ''));
+    await add(tech('public-key.jwk'), json(key.publicJwk));
+    if (pdf) await add(tech('report.html'), reportHtml);
 
     const manifest: ExportManifest = {
       schema: 'evicap.export/1',
@@ -345,18 +358,19 @@ export async function exportCase(
       software,
       environment: environment as unknown as Record<string, unknown>,
       case: { id: c.id, name: c.name, reference: c.reference, investigator: c.investigator, organisation: c.organisation, status: c.status },
-      publicKey: { file: 'public-key.jwk', fingerprint: key.fingerprint },
+      layout: { technical: LAYOUT.technical, startHere: LAYOUT.startHere },
+      publicKey: { file: tech('public-key.jwk'), fingerprint: key.fingerprint },
       auditHead: { seq: head?.seq ?? -1, hash: head?.hash ?? null, redactedEvents },
       captures: captures
         .filter((x) => x.status === 'complete' && !x.deleted)
-        .map((x) => ({ id: x.id, exhibit: numbers.get(x.id) ?? '?', captureHash: x.captureHash })),
+        .map((x) => ({ id: x.id, exhibit: numbers.get(x.id) ?? '?', folder: folders.get(x.id)!, captureHash: x.captureHash })),
       reportPdf,
       files: listed,
     };
     step('Signing');
     const signature = await signJson(manifest);
-    await zip.add('manifest.json', new TextEncoder().encode(json(manifest)));
-    await zip.add('manifest.sig', new TextEncoder().encode(signature + '\n'));
+    await zip.add(tech('manifest.json'), new TextEncoder().encode(json(manifest)));
+    await zip.add(tech('manifest.sig'), new TextEncoder().encode(signature + '\n'));
     await zip.finish();
     await flush();
     await writable.close();

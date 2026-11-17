@@ -80,15 +80,14 @@ WHY THE EVIDENCE HOLDS UP
 EXPORT AND VERIFY
 ━━━━━━━━━━━━━━━━━━━━
 
-Export a whole case as one ZIP containing:
-• a PDF report, and the same report as a web page, with the case details, an integrity summary, an exhibit index with thumbnails, the notes and an audit summary
-• every capture, numbered as exhibits (EV-001, EV-002 and so on)
-• the visit log as a spreadsheet (CSV) and as JSON
-• the complete audit log
-• a signed list of every file, and the public key
-• verify.html, an offline verifier
+Export a whole case as one ZIP, laid out so anyone who receives it knows what to open:
+• "1 - START HERE", a plain-English page listing every exhibit with buttons to open its picture, video or saved page
+• "2 - Evidence report", a PDF with the case details, an integrity summary, an exhibit index with thumbnails, the notes and an audit summary
+• "3 - Check nothing has been changed", an offline verifier
+• an Exhibits folder with one named folder per capture (EV-001, EV-002 and so on)
+• a separate technical folder with the visit log as a spreadsheet (CSV) and JSON, the complete audit log, a signed list of every file, and the public key
 
-Anyone can open verify.html in a modern browser, choose the ZIP, and check every hash, every signature and the whole audit chain. It works without an internet connection, uploads nothing and doesn't need EviCap installed, so you can hand it to a colleague, a lawyer or a court along with the evidence. You can also check an export, or the live case, from the dashboard, and each check is itself recorded in the audit log.
+Anyone can open the checker in a modern browser, choose the ZIP, and check every hash, every signature and the whole audit chain. It works without an internet connection, uploads nothing and doesn't need EviCap installed, so you can hand it to a colleague, a lawyer or a court along with the evidence. You can also check an export, or the live case, from the dashboard, and each check is itself recorded in the audit log.
 
 Selected exhibits (Pro): export only the exhibits you choose. Audit entries about unrelated pages are left out, and the verifier still confirms that the chain is intact and says how many entries were left out.
 

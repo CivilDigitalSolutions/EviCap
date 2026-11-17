@@ -22,7 +22,8 @@ export function ExportPanel({ c }: { c: CaseRecord }) {
       <div className="card">
         <h2>Check an export file</h2>
         <p className="small" style={{ margin: '0 0 8px' }}>
-          Every export contains <span className="mono">verify.html</span>, which checks it offline in any browser. You can also check an export here.
+          Every export contains <strong>3 - Check nothing has been changed.html</strong>, which checks it offline in any browser. You can also check an
+          export here.
         </p>
         <a className="btn" href="#/verify">
           Open the verifier
@@ -59,8 +60,9 @@ function ExportCard({ c }: { c: CaseRecord }) {
     <div className="card stack">
       <h2>Export</h2>
       <p className="small" style={{ margin: 0 }}>
-        One ZIP file with every capture, the visit log, notes, the audit log, a report (HTML and PDF) and an offline verifier, all listed with
-        SHA-256 hashes in a signed manifest. Nothing is uploaded: the file is saved to your computer.
+        One ZIP file, laid out for whoever receives it: a <strong>1 - START HERE</strong> page that says what to open, the PDF report, an offline
+        checker and one folder per exhibit. The visit log, notes, audit log and signed manifest are in a separate technical folder. Nothing is
+        uploaded: the file is saved to your computer.
       </p>
       <div className="row" role="radiogroup" aria-label="What to export">
         <label className="row" style={{ gap: 6 }}>
@@ -150,6 +152,8 @@ function ExportCard({ c }: { c: CaseRecord }) {
         <Banner kind="ok">
           Export saved as <strong>{result.fileName}</strong> ({formatBytes(result.bytes)}). SHA-256 of the ZIP: <span className="mono">{result.sha256}</span>.
           This is recorded in the audit log. {result.reportPdf !== 'included' && ` The PDF report is missing: ${result.reportPdf}`}
+          <br />
+          Send the whole ZIP file unchanged. Whoever receives it should unzip it and open <strong>1 - START HERE.html</strong>.
         </Banner>
       )}
     </div>
